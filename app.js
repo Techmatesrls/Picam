@@ -1,25 +1,41 @@
 /* ========================================
-   PICAM INVENTARIO - APP.JS
-   Applicazione PWA per inventario
+   PICAM INVENTARIO - APP.JS v1.1
+   Con integrazione Google Drive API
    ======================================== */
+
+// ==========================================
+// CONFIGURAZIONE GOOGLE
+// ==========================================
+
+const GOOGLE_CONFIG = {
+    clientId: '531186661114-h0t8okuq99ft6j889lq1b6skgo2pl074.apps.googleusercontent.com',
+    scopes: 'https://www.googleapis.com/auth/drive.file https://www.googleapis.com/auth/drive.readonly',
+    discoveryDocs: ['https://www.googleapis.com/discovery/v1/apis/drive/v3/rest']
+};
 
 // ==========================================
 // STATO GLOBALE
 // ==========================================
 
 const APP = {
+    // Google Auth
+    tokenClient: null,
+    accessToken: null,
+    userEmail: null,
+    
     // Configurazione
     config: {
-        drivePath: '',
+        folderId: '',
+        folderPath: '',
         deposito: ''
     },
     
     // Dati caricati
     data: {
-        articoli: [],       // Da articoli.xlsx
-        codbar: [],         // Da codbar.xlsx
-        artdep: [],         // Da artdep.xlsx
-        merged: []          // Dati aggregati
+        articoli: [],
+        codbar: [],
+        artdep: [],
+        merged: []
     },
     
     // Coda movimenti
@@ -46,25 +62,109 @@ document.addEventListener('DOMContentLoaded', () => {
     initEventListeners();
     updateQueueBadge();
     
-    // Se già configurato e dati presenti, vai alla schermata principale
+    // Aspetta che Google API sia caricata
+    waitForGoogle();
+});
+
+function waitForGoogle() {
+    if (typeof google !== 'undefined' && google.accounts) {
+        initGoogleIdentity();
+    } else {
+        setTimeout(waitForGoogle, 100);
+    }
+}
+
+function initGoogleIdentity() {
+    // Inizializza token client per accesso Drive
+    APP.tokenClient = google.accounts.oauth2.initTokenClient({
+        client_id: GOOGLE_CONFIG.clientId,
+        scope: GOOGLE_CONFIG.scopes,
+        callback: handleTokenResponse
+    });
+    
+    // Controlla se c'è un token salvato
+    const savedToken = localStorage.getItem('picam_access_token');
+    const savedExpiry = localStorage.getItem('picam_token_expiry');
+    const savedEmail = localStorage.getItem('picam_user_email');
+    
+    if (savedToken && savedExpiry && new Date().getTime() < parseInt(savedExpiry)) {
+        APP.accessToken = savedToken;
+        APP.userEmail = savedEmail;
+        onUserLoggedIn();
+    }
+}
+
+function handleTokenResponse(response) {
+    if (response.error) {
+        console.error('Errore token:', response.error);
+        showStatus('setup-status', 'Errore di autenticazione: ' + response.error, 'error');
+        return;
+    }
+    
+    APP.accessToken = response.access_token;
+    
+    // Ottieni email utente
+    fetch('https://www.googleapis.com/oauth2/v2/userinfo', {
+        headers: { 'Authorization': `Bearer ${APP.accessToken}` }
+    })
+    .then(res => res.json())
+    .then(data => {
+        APP.userEmail = data.email;
+        
+        // Salva token (scade in 1 ora)
+        const expiry = new Date().getTime() + (3600 * 1000);
+        localStorage.setItem('picam_access_token', APP.accessToken);
+        localStorage.setItem('picam_token_expiry', expiry.toString());
+        localStorage.setItem('picam_user_email', APP.userEmail);
+        
+        onUserLoggedIn();
+    })
+    .catch(err => {
+        console.error('Errore info utente:', err);
+        onUserLoggedIn();
+    });
+}
+
+function onUserLoggedIn() {
+    // Aggiorna UI
+    document.getElementById('btn-google-login').classList.add('hidden');
+    document.getElementById('user-info').classList.remove('hidden');
+    document.getElementById('user-email').textContent = APP.userEmail || 'Connesso';
+    
+    // Abilita step successivi
+    document.getElementById('step-folder').classList.remove('disabled');
+    document.getElementById('step-deposito').classList.remove('disabled');
+    
+    // Carica configurazione salvata
+    document.getElementById('input-folder').value = APP.config.folderPath || '';
+    document.getElementById('input-deposito').value = APP.config.deposito || '';
+    
+    updateLoadButton();
+    
+    // Se c'è cache, carica direttamente
     const cachedData = localStorage.getItem('picam_merged_data');
-    if (APP.config.drivePath && APP.config.deposito && cachedData) {
+    if (APP.config.folderPath && APP.config.deposito && cachedData) {
         try {
             APP.data.merged = JSON.parse(cachedData);
             showMainScreen();
             populateFilters();
-            showToast(`${APP.data.merged.length} articoli in cache`, 'success');
+            showToast(`${APP.data.merged.length} articoli dalla cache`, 'success');
         } catch (e) {
-            console.error('Errore caricamento cache:', e);
+            console.error('Errore cache:', e);
         }
     }
-});
+}
 
 function initEventListeners() {
-    // Setup screen
+    // Login Google
+    document.getElementById('btn-google-login').addEventListener('click', handleGoogleLogin);
+    document.getElementById('btn-logout').addEventListener('click', handleLogout);
+    
+    // Setup
+    document.getElementById('btn-browse-folder').addEventListener('click', browseGoogleDrive);
+    document.getElementById('input-folder').addEventListener('input', updateLoadButton);
+    document.getElementById('input-deposito').addEventListener('input', updateLoadButton);
     document.getElementById('btn-load-data').addEventListener('click', handleLoadData);
-    document.getElementById('input-path').value = APP.config.drivePath;
-    document.getElementById('input-deposito').value = APP.config.deposito;
     
     // Header
     document.getElementById('btn-settings').addEventListener('click', showSetupScreen);
@@ -102,6 +202,230 @@ function initEventListeners() {
 }
 
 // ==========================================
+// AUTENTICAZIONE GOOGLE
+// ==========================================
+
+function handleGoogleLogin() {
+    if (!APP.tokenClient) {
+        showStatus('setup-status', 'Google API non ancora caricata, riprova...', 'error');
+        waitForGoogle();
+        return;
+    }
+    APP.tokenClient.requestAccessToken();
+}
+
+function handleLogout() {
+    // Revoca token
+    if (APP.accessToken) {
+        google.accounts.oauth2.revoke(APP.accessToken);
+    }
+    
+    // Pulisci stato
+    APP.accessToken = null;
+    APP.userEmail = null;
+    localStorage.removeItem('picam_access_token');
+    localStorage.removeItem('picam_token_expiry');
+    localStorage.removeItem('picam_user_email');
+    
+    // Reset UI
+    document.getElementById('btn-google-login').classList.remove('hidden');
+    document.getElementById('user-info').classList.add('hidden');
+    document.getElementById('step-folder').classList.add('disabled');
+    document.getElementById('step-deposito').classList.add('disabled');
+    document.getElementById('btn-load-data').disabled = true;
+    
+    showToast('Disconnesso', 'success');
+}
+
+// ==========================================
+// GOOGLE DRIVE API
+// ==========================================
+
+async function browseGoogleDrive() {
+    if (!APP.accessToken) {
+        showToast('Effettua prima il login', 'error');
+        return;
+    }
+    
+    try {
+        showStatus('setup-status', 'Caricamento cartelle...', 'loading');
+        
+        // Cerca cartelle su Drive
+        const response = await fetch(
+            `https://www.googleapis.com/drive/v3/files?q=mimeType='application/vnd.google-apps.folder' and trashed=false&fields=files(id,name,parents)&orderBy=name&pageSize=100`,
+            {
+                headers: {
+                    'Authorization': `Bearer ${APP.accessToken}`
+                }
+            }
+        );
+        
+        if (!response.ok) throw new Error('Errore caricamento cartelle');
+        
+        const data = await response.json();
+        showFolderPicker(data.files);
+        
+    } catch (e) {
+        console.error('Errore browse:', e);
+        showStatus('setup-status', 'Errore caricamento cartelle', 'error');
+    }
+}
+
+function showFolderPicker(folders) {
+    // Crea modal per selezione cartella
+    const existingModal = document.getElementById('folder-picker-modal');
+    if (existingModal) existingModal.remove();
+    
+    const modal = document.createElement('div');
+    modal.id = 'folder-picker-modal';
+    modal.className = 'modal-overlay';
+    modal.innerHTML = `
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>📁 Seleziona cartella</h3>
+                <button class="btn-close" onclick="this.closest('.modal-overlay').remove()">✕</button>
+            </div>
+            <div class="modal-body">
+                <div class="folder-list">
+                    ${folders.length === 0 ? '<p class="empty-message">Nessuna cartella trovata</p>' : ''}
+                    ${folders.map(f => `
+                        <div class="folder-item" data-id="${f.id}" data-name="${f.name}">
+                            <span class="folder-icon">📁</span>
+                            <span class="folder-name">${f.name}</span>
+                        </div>
+                    `).join('')}
+                </div>
+            </div>
+        </div>
+    `;
+    
+    document.body.appendChild(modal);
+    
+    // Event listeners per selezione
+    modal.querySelectorAll('.folder-item').forEach(item => {
+        item.addEventListener('click', () => {
+            APP.config.folderId = item.dataset.id;
+            APP.config.folderPath = item.dataset.name;
+            document.getElementById('input-folder').value = item.dataset.name;
+            modal.remove();
+            updateLoadButton();
+            showStatus('setup-status', `Cartella selezionata: ${item.dataset.name}`, 'success');
+        });
+    });
+    
+    showStatus('setup-status', '', '');
+}
+
+async function findFolderByPath(path) {
+    // Se abbiamo già l'ID, usalo
+    if (APP.config.folderId && APP.config.folderPath === path) {
+        return APP.config.folderId;
+    }
+    
+    // Altrimenti cerca per nome
+    const folderName = path.split('/').pop();
+    
+    const response = await fetch(
+        `https://www.googleapis.com/drive/v3/files?q=name='${folderName}' and mimeType='application/vnd.google-apps.folder' and trashed=false&fields=files(id,name)`,
+        {
+            headers: {
+                'Authorization': `Bearer ${APP.accessToken}`
+            }
+        }
+    );
+    
+    if (!response.ok) throw new Error('Cartella non trovata');
+    
+    const data = await response.json();
+    if (data.files.length === 0) throw new Error(`Cartella "${path}" non trovata`);
+    
+    APP.config.folderId = data.files[0].id;
+    return data.files[0].id;
+}
+
+async function downloadFileFromDrive(folderId, fileName) {
+    // Cerca il file nella cartella
+    const searchResponse = await fetch(
+        `https://www.googleapis.com/drive/v3/files?q='${folderId}' in parents and name='${fileName}' and trashed=false&fields=files(id,name,mimeType)`,
+        {
+            headers: {
+                'Authorization': `Bearer ${APP.accessToken}`
+            }
+        }
+    );
+    
+    if (!searchResponse.ok) throw new Error(`Errore ricerca ${fileName}`);
+    
+    const searchData = await searchResponse.json();
+    if (searchData.files.length === 0) throw new Error(`File "${fileName}" non trovato nella cartella`);
+    
+    const fileId = searchData.files[0].id;
+    
+    // Scarica il contenuto
+    const downloadResponse = await fetch(
+        `https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`,
+        {
+            headers: {
+                'Authorization': `Bearer ${APP.accessToken}`
+            }
+        }
+    );
+    
+    if (!downloadResponse.ok) throw new Error(`Errore download ${fileName}`);
+    
+    return await downloadResponse.arrayBuffer();
+}
+
+async function uploadFileToDrive(folderId, fileName, content) {
+    // Cerca se esiste già
+    const searchResponse = await fetch(
+        `https://www.googleapis.com/drive/v3/files?q='${folderId}' in parents and name='${fileName}' and trashed=false&fields=files(id)`,
+        {
+            headers: {
+                'Authorization': `Bearer ${APP.accessToken}`
+            }
+        }
+    );
+    
+    const searchData = await searchResponse.json();
+    const existingFileId = searchData.files && searchData.files.length > 0 ? searchData.files[0].id : null;
+    
+    // Prepara i dati
+    const metadata = {
+        name: fileName,
+        mimeType: 'text/plain'
+    };
+    
+    if (!existingFileId) {
+        metadata.parents = [folderId];
+    }
+    
+    const form = new FormData();
+    form.append('metadata', new Blob([JSON.stringify(metadata)], { type: 'application/json' }));
+    form.append('file', new Blob([content], { type: 'text/plain' }));
+    
+    let url = 'https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart';
+    let method = 'POST';
+    
+    if (existingFileId) {
+        url = `https://www.googleapis.com/upload/drive/v3/files/${existingFileId}?uploadType=multipart`;
+        method = 'PATCH';
+    }
+    
+    const response = await fetch(url, {
+        method: method,
+        headers: {
+            'Authorization': `Bearer ${APP.accessToken}`
+        },
+        body: form
+    });
+    
+    if (!response.ok) throw new Error('Errore upload file');
+    
+    return await response.json();
+}
+
+// ==========================================
 // CONFIGURAZIONE
 // ==========================================
 
@@ -117,9 +441,17 @@ function loadConfig() {
 }
 
 function saveConfig() {
-    APP.config.drivePath = document.getElementById('input-path').value.trim();
+    APP.config.folderPath = document.getElementById('input-folder').value.trim();
     APP.config.deposito = document.getElementById('input-deposito').value.trim().toUpperCase();
     localStorage.setItem('picam_config', JSON.stringify(APP.config));
+}
+
+function updateLoadButton() {
+    const folder = document.getElementById('input-folder').value.trim();
+    const deposito = document.getElementById('input-deposito').value.trim();
+    const hasToken = !!APP.accessToken;
+    
+    document.getElementById('btn-load-data').disabled = !(hasToken && folder && deposito);
 }
 
 // ==========================================
@@ -127,76 +459,39 @@ function saveConfig() {
 // ==========================================
 
 async function handleLoadData() {
-    const path = document.getElementById('input-path').value.trim();
+    const folderPath = document.getElementById('input-folder').value.trim();
     const deposito = document.getElementById('input-deposito').value.trim().toUpperCase();
     
-    if (!path) {
-        showStatus('setup-status', 'Inserisci il percorso della cartella', 'error');
+    if (!folderPath || !deposito) {
+        showStatus('setup-status', 'Compila tutti i campi', 'error');
         return;
     }
     
-    if (!deposito) {
-        showStatus('setup-status', 'Inserisci il codice deposito', 'error');
+    if (!APP.accessToken) {
+        showStatus('setup-status', 'Effettua prima il login', 'error');
         return;
     }
     
     saveConfig();
-    showStatus('setup-status', 'Caricamento file in corso...', 'loading');
+    showStatus('setup-status', 'Ricerca cartella...', 'loading');
     
     try {
-        // Nota: In ambiente PWA su GitHub Pages, non possiamo accedere direttamente
-        // al filesystem. L'utente dovrà selezionare i file manualmente.
-        // Usiamo File System Access API se disponibile, altrimenti input file.
+        // Trova cartella
+        const folderId = await findFolderByPath(folderPath);
         
-        if ('showDirectoryPicker' in window) {
-            await loadFilesWithPicker();
-        } else {
-            // Fallback: mostra istruzioni per caricare file manualmente
-            showFileInputFallback();
-        }
-    } catch (e) {
-        console.error('Errore caricamento:', e);
-        showStatus('setup-status', `Errore: ${e.message}`, 'error');
-    }
-}
-
-async function loadFilesWithPicker() {
-    try {
-        showStatus('setup-status', 'Seleziona la cartella con i file xlsx...', 'loading');
+        showStatus('setup-status', 'Scaricamento articoli.xlsx...', 'loading');
+        const articoliData = await downloadFileFromDrive(folderId, 'articoli.xlsx');
+        APP.data.articoli = parseExcelData(articoliData);
         
-        const dirHandle = await window.showDirectoryPicker();
+        showStatus('setup-status', 'Scaricamento codbar.xlsx...', 'loading');
+        const codbarData = await downloadFileFromDrive(folderId, 'codbar.xlsx');
+        APP.data.codbar = parseExcelData(codbarData);
         
-        const files = {
-            articoli: null,
-            codbar: null,
-            artdep: null
-        };
-        
-        for await (const entry of dirHandle.values()) {
-            if (entry.kind === 'file') {
-                const name = entry.name.toLowerCase();
-                if (name === 'articoli.xlsx') files.articoli = await entry.getFile();
-                else if (name === 'codbar.xlsx') files.codbar = await entry.getFile();
-                else if (name === 'artdep.xlsx') files.artdep = await entry.getFile();
-            }
-        }
-        
-        if (!files.articoli || !files.codbar || !files.artdep) {
-            const missing = [];
-            if (!files.articoli) missing.push('articoli.xlsx');
-            if (!files.codbar) missing.push('codbar.xlsx');
-            if (!files.artdep) missing.push('artdep.xlsx');
-            throw new Error(`File mancanti: ${missing.join(', ')}`);
-        }
+        showStatus('setup-status', 'Scaricamento artdep.xlsx...', 'loading');
+        const artdepData = await downloadFileFromDrive(folderId, 'artdep.xlsx');
+        APP.data.artdep = parseExcelData(artdepData);
         
         showStatus('setup-status', 'Elaborazione dati...', 'loading');
-        
-        // Leggi i file Excel
-        APP.data.articoli = await parseExcelFile(files.articoli);
-        APP.data.codbar = await parseExcelFile(files.codbar);
-        APP.data.artdep = await parseExcelFile(files.artdep);
-        
-        // Aggrega i dati
         mergeData();
         
         // Salva in cache
@@ -210,134 +505,17 @@ async function loadFilesWithPicker() {
         }, 1000);
         
     } catch (e) {
-        if (e.name === 'AbortError') {
-            showStatus('setup-status', 'Selezione annullata', 'error');
-        } else {
-            throw e;
-        }
-    }
-}
-
-function showFileInputFallback() {
-    // Crea input file nascosti per fallback
-    const container = document.createElement('div');
-    container.innerHTML = `
-        <div style="margin-top: 20px; padding: 16px; background: var(--bg-input); border-radius: var(--radius-md);">
-            <p style="margin-bottom: 12px; font-size: 14px; color: var(--text-secondary);">
-                Il tuo browser non supporta la selezione cartelle. Carica i file singolarmente:
-            </p>
-            <div style="display: flex; flex-direction: column; gap: 8px;">
-                <label class="file-input-label">
-                    📄 articoli.xlsx
-                    <input type="file" id="file-articoli" accept=".xlsx" style="display:none">
-                </label>
-                <label class="file-input-label">
-                    📄 codbar.xlsx
-                    <input type="file" id="file-codbar" accept=".xlsx" style="display:none">
-                </label>
-                <label class="file-input-label">
-                    📄 artdep.xlsx
-                    <input type="file" id="file-artdep" accept=".xlsx" style="display:none">
-                </label>
-            </div>
-            <button id="btn-process-files" class="btn-primary" style="margin-top: 12px;">
-                Elabora file
-            </button>
-        </div>
-    `;
-    
-    // Aggiungi stili per label file
-    const style = document.createElement('style');
-    style.textContent = `
-        .file-input-label {
-            display: block;
-            padding: 12px;
-            background: var(--bg-card);
-            border: 1px dashed var(--border-color);
-            border-radius: var(--radius-sm);
-            cursor: pointer;
-            font-size: 14px;
-            transition: all 0.2s;
-        }
-        .file-input-label:hover {
-            border-color: var(--accent-primary);
-        }
-        .file-input-label.loaded {
-            border-color: var(--accent-primary);
-            background: rgba(74, 222, 128, 0.1);
-        }
-    `;
-    document.head.appendChild(style);
-    
-    const card = document.querySelector('.setup-card');
-    card.appendChild(container);
-    
-    // Event listeners per file input
-    ['articoli', 'codbar', 'artdep'].forEach(name => {
-        document.getElementById(`file-${name}`).addEventListener('change', (e) => {
-            if (e.target.files.length > 0) {
-                e.target.parentElement.classList.add('loaded');
-                e.target.parentElement.textContent = `✅ ${e.target.files[0].name}`;
-            }
-        });
-    });
-    
-    document.getElementById('btn-process-files').addEventListener('click', processUploadedFiles);
-}
-
-async function processUploadedFiles() {
-    const fileArticoli = document.getElementById('file-articoli').files[0];
-    const fileCodbar = document.getElementById('file-codbar').files[0];
-    const fileArtdep = document.getElementById('file-artdep').files[0];
-    
-    if (!fileArticoli || !fileCodbar || !fileArtdep) {
-        showStatus('setup-status', 'Carica tutti e tre i file', 'error');
-        return;
-    }
-    
-    showStatus('setup-status', 'Elaborazione dati...', 'loading');
-    
-    try {
-        APP.data.articoli = await parseExcelFile(fileArticoli);
-        APP.data.codbar = await parseExcelFile(fileCodbar);
-        APP.data.artdep = await parseExcelFile(fileArtdep);
-        
-        mergeData();
-        
-        localStorage.setItem('picam_merged_data', JSON.stringify(APP.data.merged));
-        
-        showStatus('setup-status', `✅ Caricati ${APP.data.merged.length} articoli`, 'success');
-        
-        setTimeout(() => {
-            showMainScreen();
-            populateFilters();
-        }, 1000);
-    } catch (e) {
-        console.error('Errore elaborazione:', e);
+        console.error('Errore caricamento:', e);
         showStatus('setup-status', `Errore: ${e.message}`, 'error');
     }
 }
 
-function parseExcelFile(file) {
-    return new Promise((resolve, reject) => {
-        const reader = new FileReader();
-        
-        reader.onload = (e) => {
-            try {
-                const data = new Uint8Array(e.target.result);
-                const workbook = XLSX.read(data, { type: 'array' });
-                const sheetName = workbook.SheetNames[0];
-                const sheet = workbook.Sheets[sheetName];
-                const json = XLSX.utils.sheet_to_json(sheet);
-                resolve(json);
-            } catch (err) {
-                reject(err);
-            }
-        };
-        
-        reader.onerror = () => reject(new Error('Errore lettura file'));
-        reader.readAsArrayBuffer(file);
-    });
+function parseExcelData(arrayBuffer) {
+    const data = new Uint8Array(arrayBuffer);
+    const workbook = XLSX.read(data, { type: 'array' });
+    const sheetName = workbook.SheetNames[0];
+    const sheet = workbook.Sheets[sheetName];
+    return XLSX.utils.sheet_to_json(sheet);
 }
 
 function mergeData() {
@@ -389,7 +567,7 @@ function mergeData() {
             esistenza: exist.esistenza,
             locazione: exist.locazione
         };
-    }).filter(a => a.codice); // Rimuovi record senza codice
+    }).filter(a => a.codice);
     
     console.log(`Merged ${APP.data.merged.length} articoli per deposito ${deposito}`);
 }
@@ -407,28 +585,22 @@ function showMainScreen() {
 function showSetupScreen() {
     document.getElementById('screen-main').classList.remove('active');
     document.getElementById('screen-setup').classList.add('active');
-    document.getElementById('input-path').value = APP.config.drivePath;
-    document.getElementById('input-deposito').value = APP.config.deposito;
     showStatus('setup-status', '', '');
 }
 
 function switchTab(tabName) {
-    // Update buttons
     document.querySelectorAll('.tab-btn').forEach(btn => {
         btn.classList.toggle('active', btn.dataset.tab === tabName);
     });
     
-    // Update content
     document.querySelectorAll('.tab-content').forEach(content => {
         content.classList.toggle('active', content.id === `tab-${tabName}`);
     });
     
-    // Reset inventory quando si cambia tab
     if (tabName !== 'inventario') {
         resetInventory();
     }
     
-    // Aggiorna lista coda
     if (tabName === 'coda') {
         renderQueue();
     }
@@ -461,10 +633,8 @@ function handleSearch() {
     const gruppo = document.getElementById('filter-gruppo').value;
     const locazione = document.getElementById('filter-locazione').value;
     
-    // Mostra/nascondi pulsante clear
     document.getElementById('btn-clear-search').classList.toggle('hidden', !query);
     
-    // Filtra
     let results = APP.data.merged;
     
     if (query) {
@@ -505,7 +675,6 @@ function renderResults(results) {
         return;
     }
     
-    // Limita a 100 per performance
     const limited = results.slice(0, 100);
     
     container.innerHTML = limited.map(art => `
@@ -522,7 +691,6 @@ function renderResults(results) {
         </div>
     `).join('');
     
-    // Event listeners
     container.querySelectorAll('.result-item').forEach(item => {
         item.addEventListener('click', () => showDetail(item.dataset.codice));
     });
@@ -556,7 +724,6 @@ function showDetail(codice) {
     document.getElementById('det-esistenza').textContent = art.esistenza;
     document.getElementById('det-locazione').textContent = art.locazione || '-';
     
-    // Salva articolo selezionato per eventuale passaggio a inventario
     APP.selectedArticle = art;
     
     document.getElementById('article-detail').classList.remove('hidden');
@@ -587,13 +754,11 @@ function handleInventorySearch() {
         return;
     }
     
-    // Cerca articolo esatto per codice o barcode
     let art = APP.data.merged.find(a => 
         a.codice.toLowerCase() === query || 
         a.barcode === query
     );
     
-    // Se non trovato esatto, cerca parziale
     if (!art) {
         const matches = APP.data.merged.filter(a =>
             a.codice.toLowerCase().includes(query) ||
@@ -605,7 +770,6 @@ function handleInventorySearch() {
         if (matches.length === 1) {
             art = matches[0];
         } else if (matches.length > 1) {
-            // Mostra suggerimenti
             showInventorySuggestions(matches);
             return;
         }
@@ -718,7 +882,6 @@ function confirmInventory() {
     
     const qty = parseInt(APP.currentQty) || 0;
     
-    // Aggiungi alla coda
     APP.queue.push({
         codice: APP.selectedArticle.codice,
         quantita: qty,
@@ -730,7 +893,6 @@ function confirmInventory() {
     
     showToast(`✅ ${APP.selectedArticle.codice}: ${qty}`, 'success');
     
-    // Reset per prossimo articolo
     document.getElementById('inv-search-input').value = '';
     resetInventory();
 }
@@ -790,58 +952,32 @@ function renderQueue() {
 async function syncQueue() {
     if (APP.queue.length === 0) return;
     
-    showStatus('sync-status', 'Preparazione file...', 'loading');
+    if (!APP.accessToken) {
+        showStatus('sync-status', 'Effettua il login per sincronizzare', 'error');
+        return;
+    }
+    
+    showStatus('sync-status', 'Sincronizzazione in corso...', 'loading');
     
     try {
         // Genera contenuto file
         const content = APP.queue.map(item => `${item.codice};${item.quantita}`).join('\n');
         
-        // Crea blob
-        const blob = new Blob([content], { type: 'text/plain' });
+        // Trova cartella
+        const folderId = await findFolderByPath(APP.config.folderPath);
         
-        // Se File System Access API disponibile, salva direttamente
-        if ('showSaveFilePicker' in window) {
-            try {
-                const handle = await window.showSaveFilePicker({
-                    suggestedName: 'movint.txt',
-                    types: [{
-                        description: 'File di testo',
-                        accept: { 'text/plain': ['.txt'] }
-                    }]
-                });
-                
-                const writable = await handle.createWritable();
-                await writable.write(blob);
-                await writable.close();
-                
-                // Svuota coda
-                APP.queue = [];
-                saveQueue();
-                updateQueueBadge();
-                renderQueue();
-                
-                showStatus('sync-status', '✅ File salvato con successo!', 'success');
-            } catch (e) {
-                if (e.name !== 'AbortError') throw e;
-                showStatus('sync-status', 'Salvataggio annullato', 'error');
-            }
-        } else {
-            // Fallback: download
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = 'movint.txt';
-            a.click();
-            URL.revokeObjectURL(url);
-            
-            // Svuota coda
-            APP.queue = [];
-            saveQueue();
-            updateQueueBadge();
-            renderQueue();
-            
-            showStatus('sync-status', '✅ File scaricato! Spostalo nella cartella Google Drive.', 'success');
-        }
+        // Upload file
+        await uploadFileToDrive(folderId, 'movint.txt', content);
+        
+        // Svuota coda
+        APP.queue = [];
+        saveQueue();
+        updateQueueBadge();
+        renderQueue();
+        
+        showStatus('sync-status', '✅ Sincronizzato su Google Drive!', 'success');
+        showToast('✅ movint.txt aggiornato su Drive', 'success');
+        
     } catch (e) {
         console.error('Errore sync:', e);
         showStatus('sync-status', `Errore: ${e.message}`, 'error');
@@ -888,7 +1024,6 @@ function openScanner(mode) {
 }
 
 function onScanSuccess(decodedText) {
-    // Vibrazione feedback
     if (navigator.vibrate) {
         navigator.vibrate(100);
     }
@@ -905,7 +1040,7 @@ function onScanSuccess(decodedText) {
 }
 
 function onScanError(error) {
-    // Ignora errori di scansione continua
+    // Ignora
 }
 
 function closeScanner() {
@@ -933,9 +1068,7 @@ function formatPrice(value) {
 
 function formatDate(value) {
     if (!value) return '-';
-    // Se è già una stringa formattata, restituisci così
     if (typeof value === 'string' && value.includes('/')) return value;
-    // Se è un numero Excel, converti
     if (typeof value === 'number') {
         const date = new Date((value - 25569) * 86400 * 1000);
         return date.toLocaleDateString('it-IT');
@@ -965,7 +1098,7 @@ function showToast(message, type = '') {
 }
 
 // ==========================================
-// SERVICE WORKER REGISTRATION
+// SERVICE WORKER
 // ==========================================
 
 if ('serviceWorker' in navigator) {

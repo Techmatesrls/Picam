@@ -132,6 +132,222 @@ body {
     color: var(--text-secondary);
 }
 
+/* Setup Steps */
+.setup-step {
+    margin-bottom: 20px;
+    padding: 16px;
+    background: var(--bg-input);
+    border-radius: var(--radius-md);
+    border: 1px solid var(--border-color);
+    transition: opacity 0.3s ease;
+}
+
+.setup-step.disabled {
+    opacity: 0.5;
+    pointer-events: none;
+}
+
+.step-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 8px;
+}
+
+.step-number {
+    width: 24px;
+    height: 24px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 12px;
+    font-weight: 700;
+    background: var(--accent-primary);
+    color: var(--bg-dark);
+    border-radius: 50%;
+}
+
+.step-title {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--text-primary);
+}
+
+.step-desc {
+    font-size: 12px;
+    color: var(--text-muted);
+    margin-bottom: 12px;
+}
+
+/* Google Login Button */
+.btn-google {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    width: 100%;
+    padding: 12px 20px;
+    font-size: 14px;
+    font-weight: 600;
+    font-family: var(--font-display);
+    background: white;
+    color: #333;
+    border: 1px solid #ddd;
+    border-radius: var(--radius-md);
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.btn-google:hover {
+    background: #f5f5f5;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+}
+
+.btn-google svg {
+    flex-shrink: 0;
+}
+
+/* User Info */
+.user-info {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px 12px;
+    background: rgba(74, 222, 128, 0.1);
+    border: 1px solid rgba(74, 222, 128, 0.3);
+    border-radius: var(--radius-sm);
+}
+
+.user-info.hidden {
+    display: none;
+}
+
+#user-email {
+    font-size: 13px;
+    color: var(--accent-primary);
+    font-family: var(--font-mono);
+}
+
+.btn-link {
+    background: none;
+    border: none;
+    color: var(--text-muted);
+    font-size: 12px;
+    cursor: pointer;
+    text-decoration: underline;
+}
+
+.btn-link:hover {
+    color: var(--accent-danger);
+}
+
+/* Folder Input Group */
+.folder-input-group {
+    display: flex;
+    gap: 8px;
+}
+
+.folder-input-group input {
+    flex: 1;
+}
+
+.btn-icon {
+    width: 48px;
+    height: 48px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 20px;
+    background: var(--accent-primary);
+    border: none;
+    border-radius: var(--radius-md);
+    cursor: pointer;
+    transition: transform 0.2s ease;
+}
+
+.btn-icon:hover {
+    transform: scale(1.05);
+}
+
+/* Modal Overlay */
+.modal-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.85);
+    z-index: 500;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 16px;
+    animation: fadeIn 0.2s ease;
+}
+
+.modal-content {
+    width: 100%;
+    max-width: 400px;
+    max-height: 80vh;
+    background: var(--bg-card);
+    border-radius: var(--radius-lg);
+    overflow: hidden;
+    animation: slideUp 0.3s ease;
+}
+
+.modal-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 16px;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.modal-header h3 {
+    font-size: 16px;
+    font-weight: 600;
+}
+
+.modal-header .btn-close {
+    position: static;
+}
+
+.modal-body {
+    padding: 16px;
+    max-height: 60vh;
+    overflow-y: auto;
+}
+
+/* Folder List */
+.folder-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.folder-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 12px;
+    background: var(--bg-input);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.folder-item:hover {
+    background: var(--bg-card-hover);
+    border-color: var(--accent-primary);
+}
+
+.folder-icon {
+    font-size: 20px;
+}
+
+.folder-name {
+    font-size: 14px;
+    color: var(--text-primary);
+}
+
 .form-group {
     margin-bottom: 24px;
 }
