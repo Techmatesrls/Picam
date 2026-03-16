@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="192" height="192" viewBox="0 0 192 192">
+  <rect width="192" height="192" rx="32" fill="#1a1a2e"/>
+  <rect x="40" y="60" width="112" height="90" rx="8" fill="#4ade80"/>
+  <rect x="40" y="60" width="112" height="25" rx="8" fill="#22c55e"/>
+  <line x1="96" y1="60" x2="96" y2="150" stroke="#1a1a2e" stroke-width="4"/>
+  <line x1="40" y1="85" x2="152" y2="85" stroke="#1a1a2e" stroke-width="4"/>
+  <text x="96" y="175" text-anchor="middle" fill="#94a3b8" font-family="sans-serif" font-size="14">INVENTARIO</text>
+</svg>
