@@ -9,7 +9,7 @@
 
 const GOOGLE_CONFIG = {
     clientId: '531186661114-h0t8okuq99ft6j889lq1b6skgo2pl074.apps.googleusercontent.com',
-    scopes: 'https://www.googleapis.com/auth/drive.file https://www.googleapis.com/auth/drive.readonly',
+    scopes: 'https://www.googleapis.com/auth/drive',
     discoveryDocs: ['https://www.googleapis.com/discovery/v1/apis/drive/v3/rest']
 };
 
@@ -400,9 +400,19 @@ async function uploadFileToDrive(folderId, fileName, content) {
         metadata.parents = [folderId];
     }
     
-    const form = new FormData();
-    form.append('metadata', new Blob([JSON.stringify(metadata)], { type: 'application/json' }));
-    form.append('file', new Blob([content], { type: 'text/plain' }));
+    // Costruisci manualmente la richiesta multipart
+    const boundary = '-------314159265358979323846';
+    const delimiter = "\r\n--" + boundary + "\r\n";
+    const closeDelimiter = "\r\n--" + boundary + "--";
+    
+    const multipartRequestBody =
+        delimiter +
+        'Content-Type: application/json\r\n\r\n' +
+        JSON.stringify(metadata) +
+        delimiter +
+        'Content-Type: text/plain\r\n\r\n' +
+        content +
+        closeDelimiter;
     
     let url = 'https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart';
     let method = 'POST';
@@ -415,12 +425,17 @@ async function uploadFileToDrive(folderId, fileName, content) {
     const response = await fetch(url, {
         method: method,
         headers: {
-            'Authorization': `Bearer ${APP.accessToken}`
+            'Authorization': `Bearer ${APP.accessToken}`,
+            'Content-Type': 'multipart/related; boundary=' + boundary
         },
-        body: form
+        body: multipartRequestBody
     });
     
-    if (!response.ok) throw new Error('Errore upload file');
+    if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        console.error('Errore upload:', response.status, errorData);
+        throw new Error(`Errore upload: ${errorData.error?.message || response.status}`);
+    }
     
     return await response.json();
 }
@@ -1000,6 +1015,21 @@ function clearQueue() {
 // ==========================================
 
 function openScanner(mode) {
+    // Se c'è già uno scanner attivo, chiudilo prima
+    if (APP.html5QrCode) {
+        APP.html5QrCode.stop().then(() => {
+            APP.html5QrCode = null;
+            startScanner(mode);
+        }).catch(() => {
+            APP.html5QrCode = null;
+            startScanner(mode);
+        });
+    } else {
+        startScanner(mode);
+    }
+}
+
+function startScanner(mode) {
     APP.scannerCallback = mode;
     document.getElementById('scanner-overlay').classList.remove('hidden');
     
@@ -1047,8 +1077,18 @@ function closeScanner() {
     document.getElementById('scanner-overlay').classList.add('hidden');
     
     if (APP.html5QrCode) {
-        APP.html5QrCode.stop().catch(() => {});
-        APP.html5QrCode = null;
+        APP.html5QrCode.stop().then(() => {
+            APP.html5QrCode.clear();
+            APP.html5QrCode = null;
+        }).catch(() => {
+            APP.html5QrCode = null;
+        });
+    }
+    
+    // Pulisci il contenuto dello scanner reader
+    const scannerReader = document.getElementById('scanner-reader');
+    if (scannerReader) {
+        scannerReader.innerHTML = '';
     }
     
     APP.scannerCallback = null;

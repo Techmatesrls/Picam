@@ -3,7 +3,7 @@
    Gestione cache e funzionalità offline
    ======================================== */
 
-const CACHE_NAME = 'picam-inventario-v2';
+const CACHE_NAME = 'picam-inventario-v3';
 
 const ASSETS_TO_CACHE = [
     './',
