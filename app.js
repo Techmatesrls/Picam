@@ -1054,19 +1054,36 @@ function startScanner(mode) {
 }
 
 function onScanSuccess(decodedText) {
+    // Vibrazione feedback
     if (navigator.vibrate) {
-        navigator.vibrate(100);
+        navigator.vibrate(200);
     }
     
+    // Mostra cosa ha letto
+    console.log('Barcode letto:', decodedText);
+    showToast(`Letto: ${decodedText}`, 'success');
+    
+    // Chiudi scanner PRIMA di fare altro
+    const callback = APP.scannerCallback;
     closeScanner();
     
-    if (APP.scannerCallback === 'search') {
-        document.getElementById('search-input').value = decodedText;
-        handleSearch();
-    } else if (APP.scannerCallback === 'inventory') {
-        document.getElementById('inv-search-input').value = decodedText;
-        handleInventorySearch();
-    }
+    // Aspetta un attimo che lo scanner si chiuda
+    setTimeout(() => {
+        if (callback === 'search') {
+            document.getElementById('search-input').value = decodedText;
+            handleSearch();
+        } else if (callback === 'inventory') {
+            document.getElementById('inv-search-input').value = decodedText;
+            handleInventorySearch();
+            
+            // Se non trova l'articolo, avvisa
+            setTimeout(() => {
+                if (!APP.selectedArticle) {
+                    showToast(`Articolo "${decodedText}" non trovato`, 'error');
+                }
+            }, 300);
+        }
+    }, 100);
 }
 
 function onScanError(error) {
@@ -1074,14 +1091,22 @@ function onScanError(error) {
 }
 
 function closeScanner() {
-    document.getElementById('scanner-overlay').classList.add('hidden');
+    // Nascondi overlay subito
+    const overlay = document.getElementById('scanner-overlay');
+    if (overlay) {
+        overlay.classList.add('hidden');
+    }
     
+    // Ferma lo scanner
     if (APP.html5QrCode) {
-        APP.html5QrCode.stop().then(() => {
-            APP.html5QrCode.clear();
-            APP.html5QrCode = null;
-        }).catch(() => {
-            APP.html5QrCode = null;
+        const scanner = APP.html5QrCode;
+        APP.html5QrCode = null; // Previeni chiamate multiple
+        
+        scanner.stop().then(() => {
+            console.log('Scanner fermato');
+            scanner.clear();
+        }).catch((err) => {
+            console.log('Errore stop scanner:', err);
         });
     }
     
