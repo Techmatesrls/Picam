@@ -3,11 +3,12 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="theme-color" content="#1a1a2e">
     
-    <title>Picam Inventario</title>
+    <title>Picam</title>
     
     <link rel="manifest" href="manifest.json">
     <link rel="icon" type="image/png" href="icon-192.png">
@@ -33,12 +34,14 @@
     <link rel="stylesheet" href="styles.css">
 </head>
 <body>
-    <!-- SCHERMATA INIZIALE / IMPOSTAZIONI -->
+    <!-- ============================================ -->
+    <!-- SCHERMATA SETUP / LOGIN                      -->
+    <!-- ============================================ -->
     <div id="screen-setup" class="screen active">
         <div class="setup-container">
             <div class="logo">
                 <div class="logo-icon">📦</div>
-                <h1>Picam<span>Inventario</span></h1>
+                <h1>Picam</h1>
             </div>
             
             <div class="setup-card">
@@ -74,10 +77,9 @@
                     </div>
                     <p class="step-desc">Dove si trovano i file xlsx</p>
                     <div class="folder-input-group">
-                        <input type="text" id="input-folder" placeholder="Es: Picam/Archivi" autocomplete="off">
+                        <input type="text" id="input-folder" placeholder="Es: archivi" autocomplete="off">
                         <button id="btn-browse-folder" class="btn-icon" title="Sfoglia">📁</button>
                     </div>
-                    <small>Inserisci il percorso della cartella su Drive (es: Picam/Archivi)</small>
                 </div>
                 
                 <!-- Step 3: Deposito -->
@@ -99,22 +101,68 @@
             </div>
             
             <div class="setup-footer">
-                <p>Versione 1.1 - Techmatesrls</p>
+                <p>Versione 2.0 - Techmatesrls</p>
             </div>
         </div>
     </div>
 
-    <!-- SCHERMATA PRINCIPALE CON NAVIGAZIONE -->
-    <div id="screen-main" class="screen">
+    <!-- ============================================ -->
+    <!-- SCHERMATA MENU PRINCIPALE                    -->
+    <!-- ============================================ -->
+    <div id="screen-menu" class="screen">
+        <div class="menu-container">
+            <div class="menu-header">
+                <div class="logo-small">
+                    <span class="logo-icon">📦</span>
+                    <span>Picam</span>
+                </div>
+                <button id="btn-menu-settings" class="btn-icon-only" title="Impostazioni">⚙️</button>
+            </div>
+            
+            <div class="menu-user-info">
+                <span id="menu-user-email"></span>
+                <span id="menu-deposito" class="badge">DEP: 01</span>
+            </div>
+            
+            <div class="menu-grid">
+                <button id="btn-open-inventario" class="menu-card">
+                    <div class="menu-card-icon">📋</div>
+                    <div class="menu-card-title">Inventario</div>
+                    <div class="menu-card-desc">Gestione inventario magazzino</div>
+                </button>
+                
+                <button id="btn-open-ordini" class="menu-card">
+                    <div class="menu-card-icon">🛒</div>
+                    <div class="menu-card-title">Ordini</div>
+                    <div class="menu-card-desc">Creazione ordini clienti</div>
+                </button>
+            </div>
+            
+            <div class="menu-stats">
+                <div class="stat-item">
+                    <span class="stat-value" id="stat-articoli">0</span>
+                    <span class="stat-label">Articoli</span>
+                </div>
+                <div class="stat-item">
+                    <span class="stat-value" id="stat-clienti">0</span>
+                    <span class="stat-label">Clienti</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ============================================ -->
+    <!-- SCHERMATA INVENTARIO                         -->
+    <!-- ============================================ -->
+    <div id="screen-inventario" class="screen">
         <!-- Header -->
         <header class="main-header">
             <div class="header-left">
-                <span class="header-icon">📦</span>
-                <span class="header-title">Picam Inventario</span>
+                <button id="btn-inv-back" class="btn-back">←</button>
+                <span class="header-title">Inventario</span>
             </div>
             <div class="header-right">
-                <span id="header-deposito" class="badge">DEP: 01</span>
-                <button id="btn-settings" class="btn-icon-only" title="Impostazioni">⚙️</button>
+                <span id="header-deposito-inv" class="badge">DEP: 01</span>
             </div>
         </header>
         
@@ -159,9 +207,7 @@
                 <span id="results-count">0 articoli trovati</span>
             </div>
             
-            <div id="results-list" class="results-list">
-                <!-- Risultati ricerca -->
-            </div>
+            <div id="results-list" class="results-list"></div>
             
             <!-- Dettaglio articolo (overlay) -->
             <div id="article-detail" class="detail-overlay hidden">
@@ -329,16 +375,235 @@
             </div>
         </div>
     </div>
-    
-    <!-- SCANNER OVERLAY -->
+
+    <!-- ============================================ -->
+    <!-- SCHERMATA ORDINI                             -->
+    <!-- ============================================ -->
+    <div id="screen-ordini" class="screen">
+        <!-- Header -->
+        <header class="main-header">
+            <div class="header-left">
+                <button id="btn-ord-back" class="btn-back">←</button>
+                <span class="header-title">Nuovo Ordine</span>
+            </div>
+            <div class="header-right">
+                <button id="btn-ord-list" class="btn-icon-only" title="Lista ordini">📋</button>
+            </div>
+        </header>
+        
+        <!-- Contenuto Ordine -->
+        <div class="ordine-container">
+            <!-- Sezione Testata -->
+            <section class="ordine-section">
+                <h3>📝 Testata Ordine</h3>
+                <div class="ordine-grid">
+                    <div class="ordine-field">
+                        <label>Data</label>
+                        <input type="text" id="ord-data" readonly>
+                    </div>
+                    <div class="ordine-field">
+                        <label>Registro</label>
+                        <input type="text" id="ord-registro" value="01" maxlength="2">
+                    </div>
+                    <div class="ordine-field">
+                        <label>N° Ordine</label>
+                        <input type="text" id="ord-numero" readonly>
+                    </div>
+                </div>
+            </section>
+            
+            <!-- Sezione Cliente -->
+            <section class="ordine-section">
+                <h3>👤 Cliente</h3>
+                <div class="search-bar">
+                    <span class="search-icon">🔍</span>
+                    <input type="text" id="ord-cliente-search" placeholder="Cerca cliente...">
+                    <button id="btn-scan-cliente" class="btn-scan" title="Scansiona">📷</button>
+                </div>
+                
+                <div id="ord-cliente-info" class="cliente-info empty">
+                    <p class="empty-message">Seleziona un cliente</p>
+                </div>
+                
+                <div id="ord-cliente-detail" class="cliente-detail hidden">
+                    <div class="cliente-header">
+                        <span class="cliente-codice" id="ord-cli-codice"></span>
+                        <span class="cliente-ragsoc" id="ord-cli-ragsoc"></span>
+                    </div>
+                    <div class="cliente-body">
+                        <p id="ord-cli-indirizzo"></p>
+                        <p id="ord-cli-citta"></p>
+                        <p id="ord-cli-piva"></p>
+                    </div>
+                    <div class="ordine-field inline">
+                        <label>Cod. Pagamento</label>
+                        <input type="text" id="ord-cod-pag" maxlength="4">
+                    </div>
+                </div>
+            </section>
+            
+            <!-- Sezione Articoli -->
+            <section class="ordine-section">
+                <h3>📦 Articoli</h3>
+                <div class="search-bar">
+                    <span class="search-icon">🔍</span>
+                    <input type="text" id="ord-articolo-search" placeholder="Aggiungi articolo...">
+                    <button id="btn-scan-articolo" class="btn-scan" title="Scansiona">📷</button>
+                </div>
+                
+                <div id="ord-righe-list" class="righe-list">
+                    <p class="empty-message">Nessun articolo inserito</p>
+                </div>
+            </section>
+            
+            <!-- Sezione Totali -->
+            <section class="ordine-section totali">
+                <h3>💰 Totali</h3>
+                <div class="totali-grid">
+                    <div class="totale-row">
+                        <span>Netto merce</span>
+                        <span id="ord-tot-netto">€ 0,00</span>
+                    </div>
+                    <div class="totale-row">
+                        <span>IVA</span>
+                        <span id="ord-tot-iva">€ 0,00</span>
+                    </div>
+                    <div class="totale-row total">
+                        <span>Totale Ordine</span>
+                        <span id="ord-tot-ordine">€ 0,00</span>
+                    </div>
+                    <div class="totale-row total">
+                        <span>Netto a Pagare</span>
+                        <span id="ord-tot-pagare">€ 0,00</span>
+                    </div>
+                </div>
+            </section>
+            
+            <!-- Pulsante Conferma -->
+            <button id="btn-conferma-ordine" class="btn-confirm-order" disabled>
+                <span class="btn-icon">✅</span>
+                Conferma Ordine
+            </button>
+            
+            <div id="ordine-status" class="status-message"></div>
+        </div>
+    </div>
+
+    <!-- ============================================ -->
+    <!-- MODAL AGGIUNGI RIGA ORDINE                   -->
+    <!-- ============================================ -->
+    <div id="modal-add-riga" class="modal-overlay hidden">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Aggiungi Articolo</h3>
+                <button id="btn-close-add-riga" class="btn-close">✕</button>
+            </div>
+            <div class="modal-body">
+                <div class="riga-articolo-info">
+                    <div class="riga-codice" id="riga-art-codice"></div>
+                    <div class="riga-descrizione" id="riga-art-desc"></div>
+                    <div class="riga-meta">
+                        <span>📦 Esist: <strong id="riga-art-esist"></strong></span>
+                        <span>📍 <span id="riga-art-loc"></span></span>
+                    </div>
+                </div>
+                
+                <div class="riga-inputs">
+                    <div class="riga-field">
+                        <label>Quantità</label>
+                        <input type="number" id="riga-qta" value="1" min="1">
+                    </div>
+                    <div class="riga-field">
+                        <label>Prezzo Unitario</label>
+                        <input type="number" id="riga-prezzo" step="0.01" value="0">
+                    </div>
+                    <div class="riga-field">
+                        <label>Sconto %</label>
+                        <input type="number" id="riga-sconto" value="0" min="0" max="100">
+                    </div>
+                </div>
+                
+                <div class="riga-totale">
+                    <span>Totale riga:</span>
+                    <span id="riga-totale-value">€ 0,00</span>
+                </div>
+                
+                <button id="btn-conferma-riga" class="btn-primary">
+                    <span class="btn-icon">➕</span>
+                    Aggiungi al Ordine
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ============================================ -->
+    <!-- MODAL LISTA CLIENTI                          -->
+    <!-- ============================================ -->
+    <div id="modal-clienti" class="modal-overlay hidden">
+        <div class="modal-content modal-large">
+            <div class="modal-header">
+                <h3>Seleziona Cliente</h3>
+                <button id="btn-close-clienti" class="btn-close">✕</button>
+            </div>
+            <div class="modal-body">
+                <div id="clienti-list" class="clienti-list"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ============================================ -->
+    <!-- MODAL LISTA ARTICOLI ORDINE                  -->
+    <!-- ============================================ -->
+    <div id="modal-articoli" class="modal-overlay hidden">
+        <div class="modal-content modal-large">
+            <div class="modal-header">
+                <h3>Seleziona Articolo</h3>
+                <button id="btn-close-articoli" class="btn-close">✕</button>
+            </div>
+            <div class="modal-body">
+                <div id="articoli-ord-list" class="articoli-list"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ============================================ -->
+    <!-- MODAL LISTA ORDINI SALVATI                   -->
+    <!-- ============================================ -->
+    <div id="modal-ordini-list" class="modal-overlay hidden">
+        <div class="modal-content modal-large">
+            <div class="modal-header">
+                <h3>Ordini in Coda</h3>
+                <button id="btn-close-ordini-list" class="btn-close">✕</button>
+            </div>
+            <div class="modal-body">
+                <div id="ordini-queue-list" class="ordini-list"></div>
+                <div class="queue-actions" style="margin-top: 16px;">
+                    <button id="btn-sync-ordini" class="btn-primary" disabled>
+                        <span class="btn-icon">📤</span>
+                        Sincronizza su Google Drive
+                    </button>
+                    <button id="btn-clear-ordini" class="btn-danger" disabled>
+                        <span class="btn-icon">🗑️</span>
+                        Svuota coda ordini
+                    </button>
+                </div>
+                <div id="ordini-sync-status" class="status-message"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ============================================ -->
+    <!-- SCANNER OVERLAY                              -->
+    <!-- ============================================ -->
     <div id="scanner-overlay" class="scanner-overlay hidden">
         <div class="scanner-container">
             <div class="scanner-header">
                 <h3>📷 Scansiona codice a barre</h3>
-                <button id="btn-close-scanner" class="btn-close">✕</button>
+                <button id="btn-close-scanner" class="btn-close-scanner">✕ Chiudi</button>
             </div>
             <div id="scanner-reader"></div>
             <p class="scanner-hint">Inquadra il codice a barre</p>
+            <button id="btn-cancel-scanner" class="btn-cancel-scanner">Annulla</button>
         </div>
     </div>
     

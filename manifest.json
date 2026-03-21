@@ -1,12 +1,12 @@
 {
-    "name": "Picam Inventario",
-    "short_name": "Inventario",
-    "description": "Applicazione per inventario magazzino Picam",
+    "name": "Picam",
+    "short_name": "Picam",
+    "description": "Gestione Inventario e Ordini",
     "start_url": "./",
     "display": "standalone",
-    "orientation": "portrait",
     "background_color": "#0f0f1a",
     "theme_color": "#1a1a2e",
+    "orientation": "portrait",
     "icons": [
         {
             "src": "icon-192.png",
@@ -20,7 +20,5 @@
             "type": "image/png",
             "purpose": "any maskable"
         }
-    ],
-    "categories": ["business", "productivity"],
-    "lang": "it-IT"
+    ]
 }
