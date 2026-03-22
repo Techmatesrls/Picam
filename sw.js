@@ -1,5 +1,6 @@
-// Service Worker - Picam v2.0
-const CACHE_NAME = 'picam-v6';
+// Service Worker - Picam v2.1.0
+const CACHE_NAME = 'picam-v10';
+
 const ASSETS = [
     './',
     './index.html',
@@ -36,25 +37,26 @@ self.addEventListener('fetch', event => {
     // Skip non-GET requests
     if (event.request.method !== 'GET') return;
     
-    // Skip Google APIs
-    if (event.request.url.includes('googleapis.com') || 
-        event.request.url.includes('accounts.google.com') ||
-        event.request.url.includes('gstatic.com')) {
-        return;
-    }
+    // Skip Google APIs and external resources
+    const url = new URL(event.request.url);
+    if (url.origin !== location.origin) return;
     
     event.respondWith(
-        fetch(event.request)
-            .then(response => {
-                // Clone and cache
-                const responseClone = response.clone();
-                caches.open(CACHE_NAME).then(cache => {
-                    cache.put(event.request, responseClone);
-                });
-                return response;
-            })
-            .catch(() => {
-                return caches.match(event.request);
+        caches.match(event.request)
+            .then(cached => {
+                const fetched = fetch(event.request)
+                    .then(response => {
+                        // Clone and cache new responses
+                        if (response.ok) {
+                            const clone = response.clone();
+                            caches.open(CACHE_NAME)
+                                .then(cache => cache.put(event.request, clone));
+                        }
+                        return response;
+                    })
+                    .catch(() => cached);
+                
+                return cached || fetched;
             })
     );
 });

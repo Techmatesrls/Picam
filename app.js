@@ -1,6 +1,6 @@
 /* ========================================
-   PICAM - APP.JS v2.0
-   Inventario + Ordini
+   PICAM - APP.JS v2.1.0
+   Inventario + Ordini + Report + Scansione Veloce
    ======================================== */
 
 // ==========================================
@@ -43,6 +43,9 @@ const APP = {
     // Inventario - Coda movimenti
     queue: [],
     
+    // Inventario - Cronologia (ultimi inseriti)
+    invHistory: [],
+    
     // Ordini - Coda ordini
     ordiniQueue: [],
     
@@ -60,12 +63,24 @@ const APP = {
     // Articolo per aggiunta riga ordine
     selectedArticleForOrder: null,
     
+    // Indice movimento in modifica
+    editingMovIndex: -1,
+    
+    // Indice ordine in modifica
+    editingOrdineIndex: -1,
+    
     // Quantità corrente inventario
     currentQty: '0',
     
     // Scanner
     html5QrCode: null,
-    scannerCallback: null
+    scannerCallback: null,
+    fastScanMode: false,
+    fastScanModeOrd: false,
+    
+    // PDF corrente per condivisione
+    currentPdfBlob: null,
+    currentPdfName: ''
 };
 
 // ==========================================
@@ -75,9 +90,11 @@ const APP = {
 document.addEventListener('DOMContentLoaded', () => {
     loadConfig();
     loadQueue();
+    loadInvHistory();
     loadOrdiniQueue();
     initEventListeners();
     updateQueueBadge();
+    updateMenuBadges();
     waitForGoogle();
 });
 
@@ -93,18 +110,48 @@ function initGoogleIdentity() {
     APP.tokenClient = google.accounts.oauth2.initTokenClient({
         client_id: GOOGLE_CONFIG.clientId,
         scope: GOOGLE_CONFIG.scopes,
+        prompt: '',
         callback: handleTokenResponse
     });
     
     const savedToken = localStorage.getItem('picam_access_token');
     const savedExpiry = localStorage.getItem('picam_token_expiry');
     const savedEmail = localStorage.getItem('picam_user_email');
+    const cachedData = localStorage.getItem('picam_merged_data');
     
-    if (savedToken && savedExpiry && new Date().getTime() < parseInt(savedExpiry)) {
+    const tokenValid = savedToken && savedExpiry && new Date().getTime() < parseInt(savedExpiry);
+    
+    if (tokenValid) {
         APP.accessToken = savedToken;
         APP.userEmail = savedEmail;
         onUserLoggedIn();
+    } else if (cachedData && savedEmail) {
+        APP.userEmail = savedEmail;
+        tryAutoRefreshToken();
+    } else {
+        clearExpiredSession();
     }
+}
+
+function tryAutoRefreshToken() {
+    showStatus('setup-status', 'Riconnessione in corso...', 'loading');
+    try {
+        APP.tokenClient.requestAccessToken({ prompt: '' });
+    } catch (e) {
+        clearExpiredSession();
+        showStatus('setup-status', 'Sessione scaduta. Accedi di nuovo.', 'error');
+    }
+}
+
+function clearExpiredSession() {
+    localStorage.removeItem('picam_access_token');
+    localStorage.removeItem('picam_token_expiry');
+    APP.accessToken = null;
+    document.getElementById('btn-google-login').classList.remove('hidden');
+    document.getElementById('user-info').classList.add('hidden');
+    document.getElementById('step-folder').classList.add('disabled');
+    document.getElementById('step-deposito').classList.add('disabled');
+    document.getElementById('btn-load-data').disabled = true;
 }
 
 function handleTokenResponse(response) {
@@ -147,7 +194,6 @@ function onUserLoggedIn() {
     
     updateLoadButton();
     
-    // Se c'è cache, vai al menu
     const cachedData = localStorage.getItem('picam_merged_data');
     const cachedClienti = localStorage.getItem('picam_clienti_data');
     if (APP.config.folderPath && APP.config.deposito && cachedData) {
@@ -156,7 +202,7 @@ function onUserLoggedIn() {
             if (cachedClienti) APP.data.clientiMerged = JSON.parse(cachedClienti);
             showScreen('screen-menu');
             updateMenuStats();
-            showToast(`Dati caricati dalla cache`, 'success');
+            showToast('Dati caricati dalla cache', 'success');
         } catch (e) {
             console.error('Errore cache:', e);
         }
@@ -199,6 +245,9 @@ function initEventListeners() {
     // Inventario - Tab inventario
     document.getElementById('inv-search-input').addEventListener('input', handleInventorySearch);
     document.getElementById('btn-scan-inventory').addEventListener('click', () => openScanner('inventory'));
+    document.getElementById('toggle-fast-scan').addEventListener('change', (e) => {
+        APP.fastScanMode = e.target.checked;
+    });
     
     // Inventario - Numpad
     document.querySelectorAll('.numpad-btn').forEach(btn => {
@@ -209,6 +258,12 @@ function initEventListeners() {
     // Inventario - Coda
     document.getElementById('btn-sync').addEventListener('click', syncQueue);
     document.getElementById('btn-clear-queue').addEventListener('click', clearQueue);
+    document.getElementById('btn-report-inv').addEventListener('click', generateInventoryReport);
+    
+    // Modifica movimento
+    document.getElementById('btn-close-edit-mov').addEventListener('click', closeEditMovModal);
+    document.getElementById('btn-save-edit-mov').addEventListener('click', saveEditMov);
+    document.getElementById('btn-delete-mov').addEventListener('click', deleteEditMov);
     
     // Ordini - Header
     document.getElementById('btn-ord-back').addEventListener('click', () => showScreen('screen-menu'));
@@ -221,6 +276,9 @@ function initEventListeners() {
     // Ordini - Articoli
     document.getElementById('ord-articolo-search').addEventListener('input', handleArticoloOrdineSearch);
     document.getElementById('btn-scan-articolo').addEventListener('click', () => openScanner('articolo-ordine'));
+    document.getElementById('toggle-fast-scan-ord').addEventListener('change', (e) => {
+        APP.fastScanModeOrd = e.target.checked;
+    });
     
     // Ordini - Conferma
     document.getElementById('btn-conferma-ordine').addEventListener('click', confermaOrdine);
@@ -248,10 +306,90 @@ function initEventListeners() {
     });
     document.getElementById('btn-sync-ordini').addEventListener('click', syncOrdiniQueue);
     document.getElementById('btn-clear-ordini').addEventListener('click', clearOrdiniQueue);
+    document.getElementById('btn-report-ordini').addEventListener('click', generateOrdiniReport);
+    
+    // Modal Modifica Ordine
+    document.getElementById('btn-close-edit-ordine').addEventListener('click', () => {
+        document.getElementById('modal-edit-ordine').classList.add('hidden');
+    });
+    document.getElementById('btn-save-edit-ordine').addEventListener('click', saveEditOrdine);
+    document.getElementById('btn-delete-ordine').addEventListener('click', deleteEditOrdine);
+    
+    // Modal Condivisione
+    document.getElementById('btn-close-share').addEventListener('click', () => {
+        document.getElementById('modal-share').classList.add('hidden');
+    });
+    document.getElementById('btn-share-native').addEventListener('click', shareNative);
+    document.getElementById('btn-share-whatsapp').addEventListener('click', shareWhatsApp);
+    document.getElementById('btn-share-email').addEventListener('click', shareEmail);
+    document.getElementById('btn-share-drive').addEventListener('click', shareDrive);
+    document.getElementById('btn-share-download').addEventListener('click', shareDownload);
     
     // Scanner
     document.getElementById('btn-close-scanner').addEventListener('click', closeScanner);
     document.getElementById('btn-cancel-scanner').addEventListener('click', closeScanner);
+}
+
+// ==========================================
+// FEEDBACK SONORO E VIBRAZIONE
+// ==========================================
+
+function playSuccessSound() {
+    try {
+        const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        const oscillator = audioCtx.createOscillator();
+        const gainNode = audioCtx.createGain();
+        
+        oscillator.connect(gainNode);
+        gainNode.connect(audioCtx.destination);
+        
+        oscillator.frequency.value = 800;
+        oscillator.type = 'sine';
+        gainNode.gain.setValueAtTime(0.3, audioCtx.currentTime);
+        gainNode.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.2);
+        
+        oscillator.start(audioCtx.currentTime);
+        oscillator.stop(audioCtx.currentTime + 0.2);
+    } catch (e) {
+        console.log('Audio non supportato');
+    }
+}
+
+function playErrorSound() {
+    try {
+        const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        const oscillator = audioCtx.createOscillator();
+        const gainNode = audioCtx.createGain();
+        
+        oscillator.connect(gainNode);
+        gainNode.connect(audioCtx.destination);
+        
+        oscillator.frequency.value = 300;
+        oscillator.type = 'square';
+        gainNode.gain.setValueAtTime(0.3, audioCtx.currentTime);
+        gainNode.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.3);
+        
+        oscillator.start(audioCtx.currentTime);
+        oscillator.stop(audioCtx.currentTime + 0.3);
+    } catch (e) {
+        console.log('Audio non supportato');
+    }
+}
+
+function vibrate(pattern = [100]) {
+    if (navigator.vibrate) {
+        navigator.vibrate(pattern);
+    }
+}
+
+function feedbackSuccess() {
+    playSuccessSound();
+    vibrate([50, 50, 50]);
+}
+
+function feedbackError() {
+    playErrorSound();
+    vibrate([200]);
 }
 
 // ==========================================
@@ -264,6 +402,7 @@ function showScreen(screenId) {
     
     if (screenId === 'screen-menu') {
         updateMenuStats();
+        updateMenuBadges();
         document.getElementById('menu-user-email').textContent = APP.userEmail || '';
         document.getElementById('menu-deposito').textContent = `DEP: ${APP.config.deposito}`;
     }
@@ -271,6 +410,7 @@ function showScreen(screenId) {
     if (screenId === 'screen-inventario') {
         document.getElementById('header-deposito-inv').textContent = `DEP: ${APP.config.deposito}`;
         populateFilters();
+        renderInvHistory();
     }
     
     if (screenId === 'screen-ordini') {
@@ -281,6 +421,25 @@ function showScreen(screenId) {
 function updateMenuStats() {
     document.getElementById('stat-articoli').textContent = APP.data.merged.length;
     document.getElementById('stat-clienti').textContent = APP.data.clientiMerged.length;
+}
+
+function updateMenuBadges() {
+    const invBadge = document.getElementById('menu-badge-inv');
+    const ordBadge = document.getElementById('menu-badge-ord');
+    
+    if (APP.queue.length > 0) {
+        invBadge.textContent = APP.queue.length;
+        invBadge.classList.add('visible');
+    } else {
+        invBadge.classList.remove('visible');
+    }
+    
+    if (APP.ordiniQueue.length > 0) {
+        ordBadge.textContent = APP.ordiniQueue.length;
+        ordBadge.classList.add('visible');
+    } else {
+        ordBadge.classList.remove('visible');
+    }
 }
 
 function openInventario() {
@@ -419,7 +578,6 @@ async function findFolderByPath(path) {
 }
 
 async function findOrCreateFolder(parentId, folderName) {
-    // Cerca se esiste
     const searchResponse = await fetch(
         `https://www.googleapis.com/drive/v3/files?q='${parentId}' in parents and name='${folderName}' and mimeType='application/vnd.google-apps.folder' and trashed=false&fields=files(id)`,
         { headers: { 'Authorization': `Bearer ${APP.accessToken}` } }
@@ -430,7 +588,6 @@ async function findOrCreateFolder(parentId, folderName) {
         return searchData.files[0].id;
     }
     
-    // Crea la cartella
     const createResponse = await fetch(
         'https://www.googleapis.com/drive/v3/files',
         {
@@ -474,7 +631,7 @@ async function downloadFileFromDrive(folderId, fileName) {
     return await downloadResponse.arrayBuffer();
 }
 
-async function uploadFileToDrive(folderId, fileName, content) {
+async function uploadFileToDrive(folderId, fileName, content, mimeType = 'text/plain') {
     const searchResponse = await fetch(
         `https://www.googleapis.com/drive/v3/files?q='${folderId}' in parents and name='${fileName}' and trashed=false&fields=files(id)`,
         { headers: { 'Authorization': `Bearer ${APP.accessToken}` } }
@@ -485,7 +642,7 @@ async function uploadFileToDrive(folderId, fileName, content) {
     
     const metadata = {
         name: fileName,
-        mimeType: 'text/plain'
+        mimeType: mimeType
     };
     
     if (!existingFileId) {
@@ -496,14 +653,32 @@ async function uploadFileToDrive(folderId, fileName, content) {
     const delimiter = "\r\n--" + boundary + "\r\n";
     const closeDelimiter = "\r\n--" + boundary + "--";
     
-    const multipartRequestBody =
-        delimiter +
-        'Content-Type: application/json\r\n\r\n' +
-        JSON.stringify(metadata) +
-        delimiter +
-        'Content-Type: text/plain\r\n\r\n' +
-        content +
-        closeDelimiter;
+    let body;
+    if (typeof content === 'string') {
+        body = delimiter +
+            'Content-Type: application/json\r\n\r\n' +
+            JSON.stringify(metadata) +
+            delimiter +
+            'Content-Type: ' + mimeType + '\r\n\r\n' +
+            content +
+            closeDelimiter;
+    } else {
+        // Per contenuto binario (PDF)
+        const reader = new FileReader();
+        const base64 = await new Promise((resolve) => {
+            reader.onload = () => resolve(reader.result.split(',')[1]);
+            reader.readAsDataURL(content);
+        });
+        
+        body = delimiter +
+            'Content-Type: application/json\r\n\r\n' +
+            JSON.stringify(metadata) +
+            delimiter +
+            'Content-Type: ' + mimeType + '\r\n' +
+            'Content-Transfer-Encoding: base64\r\n\r\n' +
+            base64 +
+            closeDelimiter;
+    }
     
     let url = 'https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart';
     let method = 'POST';
@@ -519,7 +694,7 @@ async function uploadFileToDrive(folderId, fileName, content) {
             'Authorization': `Bearer ${APP.accessToken}`,
             'Content-Type': 'multipart/related; boundary=' + boundary
         },
-        body: multipartRequestBody
+        body: body
     });
     
     if (!response.ok) {
@@ -607,11 +782,11 @@ async function handleLoadData() {
         mergeData();
         mergeClienti();
         
-        // Salva in cache
         localStorage.setItem('picam_merged_data', JSON.stringify(APP.data.merged));
         localStorage.setItem('picam_clienti_data', JSON.stringify(APP.data.clientiMerged));
         
         showStatus('setup-status', `✅ Caricati ${APP.data.merged.length} articoli e ${APP.data.clientiMerged.length} clienti`, 'success');
+        feedbackSuccess();
         
         setTimeout(() => {
             showScreen('screen-menu');
@@ -620,6 +795,7 @@ async function handleLoadData() {
     } catch (e) {
         console.error('Errore caricamento:', e);
         showStatus('setup-status', `Errore: ${e.message}`, 'error');
+        feedbackError();
     }
 }
 
@@ -720,6 +896,64 @@ function switchTab(tabName) {
     if (tabName === 'coda') {
         renderQueue();
     }
+    
+    if (tabName === 'inventario') {
+        renderInvHistory();
+    }
+}
+
+// ==========================================
+// INVENTARIO - CRONOLOGIA
+// ==========================================
+
+function loadInvHistory() {
+    const saved = localStorage.getItem('picam_inv_history');
+    if (saved) {
+        try { APP.invHistory = JSON.parse(saved); } catch (e) { APP.invHistory = []; }
+    }
+}
+
+function saveInvHistory() {
+    // Mantieni solo gli ultimi 20
+    APP.invHistory = APP.invHistory.slice(-20);
+    localStorage.setItem('picam_inv_history', JSON.stringify(APP.invHistory));
+}
+
+function addToInvHistory(item) {
+    APP.invHistory.push({
+        codice: item.codice,
+        des1: item.des1,
+        locazione: item.locazione,
+        quantita: item.quantita,
+        timestamp: new Date().toISOString()
+    });
+    saveInvHistory();
+}
+
+function renderInvHistory() {
+    const container = document.getElementById('inv-history-list');
+    if (!container) return;
+    
+    if (APP.invHistory.length === 0) {
+        container.innerHTML = '<p class="empty-message-small">Nessun articolo inserito</p>';
+        return;
+    }
+    
+    // Mostra gli ultimi 5 (in ordine inverso - più recenti prima)
+    const recent = APP.invHistory.slice(-5).reverse();
+    
+    container.innerHTML = recent.map((item, idx) => `
+        <div class="history-item">
+            <div class="history-item-info">
+                <span class="history-item-code">${item.codice}</span>
+                <span class="history-item-desc">${item.des1}</span>
+            </div>
+            <div class="history-item-meta">
+                <span class="history-item-loc">📍 ${item.locazione || 'N/D'}</span>
+                <span class="history-item-qty">${item.quantita}</span>
+            </div>
+        </div>
+    `).join('');
 }
 
 // ==========================================
@@ -983,19 +1217,32 @@ function confirmInventory() {
     
     const qty = parseInt(APP.currentQty) || 0;
     
-    APP.queue.push({
+    const movItem = {
         codice: APP.selectedArticle.codice,
+        des1: APP.selectedArticle.des1,
+        locazione: APP.selectedArticle.locazione,
         quantita: qty,
         timestamp: new Date().toISOString()
-    });
+    };
     
+    APP.queue.push(movItem);
     saveQueue();
     updateQueueBadge();
     
+    // Aggiungi alla cronologia
+    addToInvHistory(movItem);
+    renderInvHistory();
+    
+    feedbackSuccess();
     showToast(`✅ ${APP.selectedArticle.codice}: ${qty}`, 'success');
     
     document.getElementById('inv-search-input').value = '';
     resetInventory();
+    
+    // In modalità scansione veloce, riapri lo scanner
+    if (APP.fastScanMode) {
+        setTimeout(() => openScanner('inventory'), 300);
+    }
 }
 
 // ==========================================
@@ -1025,24 +1272,96 @@ function renderQueue() {
     const countEl = document.getElementById('queue-count');
     const btnSync = document.getElementById('btn-sync');
     const btnClear = document.getElementById('btn-clear-queue');
+    const btnReport = document.getElementById('btn-report-inv');
+    const summaryEl = document.getElementById('queue-summary');
     
     countEl.textContent = `${APP.queue.length} movimenti`;
     
     const hasItems = APP.queue.length > 0;
     btnSync.disabled = !hasItems;
     btnClear.disabled = !hasItems;
+    btnReport.disabled = !hasItems;
     
     if (!hasItems) {
         container.innerHTML = '<p class="empty-message">Nessun movimento in coda</p>';
+        summaryEl.classList.add('hidden');
         return;
     }
     
-    container.innerHTML = APP.queue.map((item) => `
-        <div class="queue-item">
-            <span class="queue-item-code">${item.codice}</span>
+    // Riepilogo per locazione
+    const locSummary = {};
+    APP.queue.forEach(item => {
+        const loc = item.locazione || 'N/D';
+        if (!locSummary[loc]) locSummary[loc] = 0;
+        locSummary[loc]++;
+    });
+    
+    document.getElementById('queue-summary-content').innerHTML = Object.entries(locSummary)
+        .map(([loc, count]) => `<span class="summary-item">📍 ${loc}: <strong>${count}</strong></span>`)
+        .join('');
+    summaryEl.classList.remove('hidden');
+    
+    container.innerHTML = APP.queue.map((item, idx) => `
+        <div class="queue-item" data-index="${idx}">
+            <div class="queue-item-info">
+                <span class="queue-item-code">${item.codice}</span>
+                <span class="queue-item-loc">📍 ${item.locazione || 'N/D'}</span>
+            </div>
             <span class="queue-item-qty">${item.quantita}</span>
+            <button class="queue-item-edit" data-index="${idx}">✏️</button>
         </div>
     `).join('');
+    
+    container.querySelectorAll('.queue-item-edit').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            openEditMovModal(parseInt(btn.dataset.index));
+        });
+    });
+}
+
+function openEditMovModal(index) {
+    const item = APP.queue[index];
+    if (!item) return;
+    
+    APP.editingMovIndex = index;
+    
+    document.getElementById('edit-mov-codice').textContent = item.codice;
+    document.getElementById('edit-mov-desc').textContent = item.des1 || '';
+    document.getElementById('edit-mov-loc').textContent = `📍 ${item.locazione || 'N/D'}`;
+    document.getElementById('edit-mov-qta').value = item.quantita;
+    
+    document.getElementById('modal-edit-mov').classList.remove('hidden');
+}
+
+function closeEditMovModal() {
+    document.getElementById('modal-edit-mov').classList.add('hidden');
+    APP.editingMovIndex = -1;
+}
+
+function saveEditMov() {
+    if (APP.editingMovIndex < 0) return;
+    
+    const newQty = parseInt(document.getElementById('edit-mov-qta').value) || 0;
+    APP.queue[APP.editingMovIndex].quantita = newQty;
+    saveQueue();
+    renderQueue();
+    closeEditMovModal();
+    feedbackSuccess();
+    showToast('Movimento aggiornato', 'success');
+}
+
+function deleteEditMov() {
+    if (APP.editingMovIndex < 0) return;
+    
+    if (!confirm('Eliminare questo movimento?')) return;
+    
+    APP.queue.splice(APP.editingMovIndex, 1);
+    saveQueue();
+    updateQueueBadge();
+    renderQueue();
+    closeEditMovModal();
+    showToast('Movimento eliminato', 'success');
 }
 
 async function syncQueue() {
@@ -1062,12 +1381,15 @@ async function syncQueue() {
         APP.queue = [];
         saveQueue();
         updateQueueBadge();
+        updateMenuBadges();
         renderQueue();
         
+        feedbackSuccess();
         showStatus('sync-status', '✅ Sincronizzato!', 'success');
         showToast('✅ movint.txt aggiornato', 'success');
     } catch (e) {
         console.error('Errore sync:', e);
+        feedbackError();
         showStatus('sync-status', `Errore: ${e.message}`, 'error');
     }
 }
@@ -1077,8 +1399,112 @@ function clearQueue() {
     APP.queue = [];
     saveQueue();
     updateQueueBadge();
+    updateMenuBadges();
     renderQueue();
     showToast('Coda svuotata', 'success');
+}
+
+// ==========================================
+// PDF REPORT INVENTARIO
+// ==========================================
+
+async function generateInventoryReport() {
+    if (APP.queue.length === 0) {
+        showToast('Nessun movimento da esportare', 'error');
+        return;
+    }
+    
+    showStatus('sync-status', 'Generazione PDF...', 'loading');
+    
+    try {
+        const { jsPDF } = window.jspdf;
+        const doc = new jsPDF();
+        
+        const today = new Date();
+        const dateStr = today.toLocaleDateString('it-IT');
+        const timeStr = today.toLocaleTimeString('it-IT');
+        
+        // Intestazione
+        doc.setFontSize(20);
+        doc.setFont(undefined, 'bold');
+        doc.text('Report Inventario', 105, 20, { align: 'center' });
+        
+        doc.setFontSize(12);
+        doc.setFont(undefined, 'normal');
+        doc.text(`Data: ${dateStr} ${timeStr}`, 20, 35);
+        doc.text(`Deposito: ${APP.config.deposito}`, 20, 42);
+        doc.text(`Operatore: ${APP.userEmail || 'N/D'}`, 20, 49);
+        doc.text(`Totale movimenti: ${APP.queue.length}`, 20, 56);
+        
+        // Riepilogo per locazione
+        const locSummary = {};
+        APP.queue.forEach(item => {
+            const loc = item.locazione || 'N/D';
+            if (!locSummary[loc]) locSummary[loc] = 0;
+            locSummary[loc]++;
+        });
+        
+        doc.setFontSize(14);
+        doc.setFont(undefined, 'bold');
+        doc.text('Riepilogo per Locazione', 20, 70);
+        
+        doc.setFontSize(10);
+        doc.setFont(undefined, 'normal');
+        let y = 78;
+        Object.entries(locSummary).forEach(([loc, count]) => {
+            doc.text(`${loc}: ${count} articoli`, 25, y);
+            y += 6;
+        });
+        
+        // Dettaglio movimenti
+        y += 10;
+        doc.setFontSize(14);
+        doc.setFont(undefined, 'bold');
+        doc.text('Dettaglio Movimenti', 20, y);
+        y += 10;
+        
+        // Header tabella
+        doc.setFontSize(9);
+        doc.setFont(undefined, 'bold');
+        doc.text('Codice', 20, y);
+        doc.text('Descrizione', 55, y);
+        doc.text('Loc.', 140, y);
+        doc.text('Qta', 165, y);
+        y += 2;
+        doc.line(20, y, 190, y);
+        y += 5;
+        
+        doc.setFont(undefined, 'normal');
+        APP.queue.forEach(item => {
+            if (y > 280) {
+                doc.addPage();
+                y = 20;
+            }
+            doc.text(item.codice.substring(0, 20), 20, y);
+            doc.text((item.des1 || '').substring(0, 45), 55, y);
+            doc.text((item.locazione || 'N/D').substring(0, 10), 140, y);
+            doc.text(item.quantita.toString(), 165, y);
+            y += 6;
+        });
+        
+        // Footer
+        doc.setFontSize(8);
+        doc.text('Generato da Picam - Techmatesrls', 105, 290, { align: 'center' });
+        
+        // Salva PDF
+        const pdfBlob = doc.output('blob');
+        const fileName = `Report_Inventario_${dateStr.replace(/\//g, '-')}.pdf`;
+        
+        APP.currentPdfBlob = pdfBlob;
+        APP.currentPdfName = fileName;
+        
+        showStatus('sync-status', '✅ PDF generato!', 'success');
+        document.getElementById('modal-share').classList.remove('hidden');
+        
+    } catch (e) {
+        console.error('Errore generazione PDF:', e);
+        showStatus('sync-status', `Errore: ${e.message}`, 'error');
+    }
 }
 
 // ==========================================
@@ -1133,9 +1559,7 @@ function initNewOrdine() {
 function handleClienteSearch() {
     const query = document.getElementById('ord-cliente-search').value.toLowerCase().trim();
     
-    if (!query || query.length < 2) {
-        return;
-    }
+    if (!query || query.length < 2) return;
     
     const matches = APP.data.clientiMerged.filter(c =>
         c.codice.toLowerCase().includes(query) ||
@@ -1188,6 +1612,7 @@ function selectCliente(cliente) {
     document.getElementById('ord-cli-piva').textContent = `P.IVA: ${cliente.partitaIva}`;
     document.getElementById('ord-cod-pag').value = cliente.codPag || '';
     
+    feedbackSuccess();
     updateConfermaButton();
 }
 
@@ -1198,9 +1623,7 @@ function selectCliente(cliente) {
 function handleArticoloOrdineSearch() {
     const query = document.getElementById('ord-articolo-search').value.toLowerCase().trim();
     
-    if (!query || query.length < 2) {
-        return;
-    }
+    if (!query || query.length < 2) return;
     
     const matches = APP.data.merged.filter(a =>
         a.codice.toLowerCase().includes(query) ||
@@ -1307,7 +1730,13 @@ function confermaRiga() {
     updateOrdineTotali();
     updateConfermaButton();
     
+    feedbackSuccess();
     showToast(`✅ Aggiunto ${art.codice}`, 'success');
+    
+    // In modalità scansione veloce, riapri lo scanner
+    if (APP.fastScanModeOrd) {
+        setTimeout(() => openScanner('articolo-ordine'), 300);
+    }
 }
 
 function renderOrdineRighe() {
@@ -1355,7 +1784,7 @@ function updateOrdineTotali() {
     });
     
     const totOrdine = totNetto + totIva;
-    const totPagare = totOrdine; // Nessuno sconto globale per ora
+    const totPagare = totOrdine;
     
     document.getElementById('ord-tot-netto').textContent = formatPrice(totNetto);
     document.getElementById('ord-tot-iva').textContent = formatPrice(totIva);
@@ -1382,7 +1811,6 @@ function confermaOrdine() {
     const registro = document.getElementById('ord-registro').value || '01';
     const codPag = document.getElementById('ord-cod-pag').value || '';
     
-    // Calcola totali
     let totNetto = 0;
     let totIva = 0;
     APP.currentOrdine.righe.forEach(r => {
@@ -1405,14 +1833,14 @@ function confermaOrdine() {
     
     APP.ordiniQueue.push(ordine);
     saveOrdiniQueue();
+    updateMenuBadges();
     
-    // Incrementa numero ordine
     localStorage.setItem('picam_ordini_last_num', APP.currentOrdine.numero.toString());
     APP.currentOrdine.numero++;
     
+    feedbackSuccess();
     showToast(`✅ Ordine #${ordine.numero} salvato`, 'success');
     
-    // Reset per nuovo ordine
     initNewOrdine();
 }
 
@@ -1424,27 +1852,119 @@ function showOrdiniList() {
     const container = document.getElementById('ordini-queue-list');
     const btnSync = document.getElementById('btn-sync-ordini');
     const btnClear = document.getElementById('btn-clear-ordini');
+    const btnReport = document.getElementById('btn-report-ordini');
     
     const hasItems = APP.ordiniQueue.length > 0;
     btnSync.disabled = !hasItems;
     btnClear.disabled = !hasItems;
+    btnReport.disabled = !hasItems;
     
     if (!hasItems) {
         container.innerHTML = '<p class="empty-message">Nessun ordine in coda</p>';
     } else {
         container.innerHTML = APP.ordiniQueue.map((o, i) => `
-            <div class="ordine-queue-item">
+            <div class="ordine-queue-item" data-index="${i}">
                 <div class="ordine-queue-header">
                     <span>Ordine #${o.numero}</span>
                     <span>${new Date(o.data).toLocaleDateString('it-IT')}</span>
                 </div>
                 <div class="ordine-queue-cliente">${o.cliente.ragSoc1}</div>
                 <div class="ordine-queue-totale">€ ${o.totOrdine.toFixed(2)} - ${o.righe.length} articoli</div>
+                <button class="ordine-queue-edit" data-index="${i}">✏️ Modifica</button>
             </div>
         `).join('');
+        
+        container.querySelectorAll('.ordine-queue-edit').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                openEditOrdineModal(parseInt(btn.dataset.index));
+            });
+        });
     }
     
     document.getElementById('modal-ordini-list').classList.remove('hidden');
+}
+
+function openEditOrdineModal(index) {
+    const ordine = APP.ordiniQueue[index];
+    if (!ordine) return;
+    
+    APP.editingOrdineIndex = index;
+    
+    document.getElementById('edit-ord-num').textContent = ordine.numero;
+    document.getElementById('edit-ord-cliente').textContent = ordine.cliente.ragSoc1;
+    document.getElementById('edit-ord-totale-val').textContent = formatPrice(ordine.totOrdine);
+    
+    const righeContainer = document.getElementById('edit-ord-righe');
+    righeContainer.innerHTML = ordine.righe.map((r, i) => `
+        <div class="edit-ord-riga">
+            <span class="edit-ord-riga-code">${r.codice}</span>
+            <span class="edit-ord-riga-desc">${r.des1}</span>
+            <input type="number" class="edit-ord-riga-qta" data-index="${i}" value="${r.qta}" min="0">
+            <span class="edit-ord-riga-tot">€ ${r.totale.toFixed(2)}</span>
+            <button class="edit-ord-riga-del" data-index="${i}">🗑️</button>
+        </div>
+    `).join('');
+    
+    // Event listeners per modifica quantità
+    righeContainer.querySelectorAll('.edit-ord-riga-qta').forEach(input => {
+        input.addEventListener('change', () => {
+            const rigaIdx = parseInt(input.dataset.index);
+            const newQta = parseFloat(input.value) || 0;
+            ordine.righe[rigaIdx].qta = newQta;
+            ordine.righe[rigaIdx].totale = newQta * ordine.righe[rigaIdx].prezzo * (1 - ordine.righe[rigaIdx].sconto / 100);
+            recalcOrdineInEdit(ordine);
+        });
+    });
+    
+    // Event listeners per eliminazione riga
+    righeContainer.querySelectorAll('.edit-ord-riga-del').forEach(btn => {
+        btn.addEventListener('click', () => {
+            const rigaIdx = parseInt(btn.dataset.index);
+            ordine.righe.splice(rigaIdx, 1);
+            openEditOrdineModal(index); // Refresh
+        });
+    });
+    
+    document.getElementById('modal-edit-ordine').classList.remove('hidden');
+}
+
+function recalcOrdineInEdit(ordine) {
+    let totNetto = 0;
+    let totIva = 0;
+    ordine.righe.forEach(r => {
+        totNetto += r.totale;
+        totIva += r.totale * (r.codIva / 100);
+    });
+    ordine.totNetto = totNetto;
+    ordine.totIva = totIva;
+    ordine.totOrdine = totNetto + totIva;
+    ordine.totPagare = totNetto + totIva;
+    
+    document.getElementById('edit-ord-totale-val').textContent = formatPrice(ordine.totOrdine);
+}
+
+function saveEditOrdine() {
+    if (APP.editingOrdineIndex < 0) return;
+    
+    saveOrdiniQueue();
+    document.getElementById('modal-edit-ordine').classList.add('hidden');
+    showOrdiniList();
+    feedbackSuccess();
+    showToast('Ordine aggiornato', 'success');
+}
+
+function deleteEditOrdine() {
+    if (APP.editingOrdineIndex < 0) return;
+    
+    if (!confirm('Eliminare questo ordine?')) return;
+    
+    APP.ordiniQueue.splice(APP.editingOrdineIndex, 1);
+    saveOrdiniQueue();
+    updateMenuBadges();
+    document.getElementById('modal-edit-ordine').classList.add('hidden');
+    showOrdiniList();
+    showToast('Ordine eliminato', 'success');
 }
 
 async function syncOrdiniQueue() {
@@ -1460,7 +1980,6 @@ async function syncOrdiniQueue() {
         const folderId = await findFolderByPath(APP.config.folderPath);
         const ordiniFolderId = await findOrCreateFolder(folderId, 'Ordini');
         
-        // Genera i 3 file
         const anagrafiche = [];
         const testate = [];
         const dettagli = [];
@@ -1469,7 +1988,6 @@ async function syncOrdiniQueue() {
             const cli = o.cliente;
             const dataOrdine = formatDateForExport(o.data);
             
-            // Anagrafica
             anagrafiche.push([
                 cli.codice,
                 `"${cli.ragSoc1}"`,
@@ -1484,16 +2002,15 @@ async function syncOrdiniQueue() {
                 cli.pec ? `"${cli.pec}"` : ''
             ].join('|'));
             
-            // Testata
             testate.push([
                 cli.codice,
-                '',  // causale mag
+                '',
                 `"${APP.config.deposito}"`,
-                'S', // confermato
+                'S',
                 o.codPag || '',
                 dataOrdine,
                 dataOrdine,
-                '', '', '', // abbuoni, anticipi, imballo
+                '', '', '',
                 '"OCL"',
                 Math.round(o.totNetto),
                 Math.round(o.totIva),
@@ -1503,7 +2020,6 @@ async function syncOrdiniQueue() {
                 o.numero
             ].join('|'));
             
-            // Dettagli
             o.righe.forEach(r => {
                 dettagli.push([
                     `"${r.codice}"`,
@@ -1520,23 +2036,23 @@ async function syncOrdiniQueue() {
             });
         });
         
-        // Upload files
         await uploadFileToDrive(ordiniFolderId, 'ordini-anagrafiche', anagrafiche.join('\r\n'));
         await uploadFileToDrive(ordiniFolderId, 'ordini-testate', testate.join('\r\n'));
         await uploadFileToDrive(ordiniFolderId, 'ordini-dettagli', dettagli.join('\r\n'));
         
-        // Pulisci coda
         APP.ordiniQueue = [];
         saveOrdiniQueue();
+        updateMenuBadges();
         
+        feedbackSuccess();
         showStatus('ordini-sync-status', '✅ Ordini sincronizzati!', 'success');
         showToast('✅ Ordini salvati su Google Drive', 'success');
         
-        // Aggiorna vista
         showOrdiniList();
         
     } catch (e) {
         console.error('Errore sync ordini:', e);
+        feedbackError();
         showStatus('ordini-sync-status', `Errore: ${e.message}`, 'error');
     }
 }
@@ -1545,8 +2061,192 @@ function clearOrdiniQueue() {
     if (!confirm('Eliminare tutti gli ordini in coda?')) return;
     APP.ordiniQueue = [];
     saveOrdiniQueue();
+    updateMenuBadges();
     showOrdiniList();
     showToast('Coda ordini svuotata', 'success');
+}
+
+// ==========================================
+// PDF REPORT ORDINI
+// ==========================================
+
+async function generateOrdiniReport() {
+    if (APP.ordiniQueue.length === 0) {
+        showToast('Nessun ordine da esportare', 'error');
+        return;
+    }
+    
+    showStatus('ordini-sync-status', 'Generazione PDF...', 'loading');
+    
+    try {
+        const { jsPDF } = window.jspdf;
+        const doc = new jsPDF();
+        
+        const today = new Date();
+        const dateStr = today.toLocaleDateString('it-IT');
+        
+        APP.ordiniQueue.forEach((ordine, idx) => {
+            if (idx > 0) doc.addPage();
+            
+            // Intestazione
+            doc.setFontSize(18);
+            doc.setFont(undefined, 'bold');
+            doc.text(`ORDINE N° ${ordine.numero}`, 105, 20, { align: 'center' });
+            
+            doc.setFontSize(11);
+            doc.setFont(undefined, 'normal');
+            doc.text(`Data: ${new Date(ordine.data).toLocaleDateString('it-IT')}`, 20, 35);
+            doc.text(`Registro: ${ordine.registro}`, 20, 42);
+            
+            // Cliente
+            doc.setFontSize(12);
+            doc.setFont(undefined, 'bold');
+            doc.text('CLIENTE', 20, 55);
+            
+            doc.setFontSize(10);
+            doc.setFont(undefined, 'normal');
+            doc.text(ordine.cliente.ragSoc1, 20, 63);
+            doc.text(ordine.cliente.indirizzo, 20, 70);
+            doc.text(`${ordine.cliente.cap} ${ordine.cliente.localita} (${ordine.cliente.provincia})`, 20, 77);
+            doc.text(`P.IVA: ${ordine.cliente.partitaIva}`, 20, 84);
+            
+            // Articoli
+            doc.setFontSize(12);
+            doc.setFont(undefined, 'bold');
+            doc.text('ARTICOLI', 20, 100);
+            
+            let y = 110;
+            doc.setFontSize(9);
+            doc.setFont(undefined, 'bold');
+            doc.text('Codice', 20, y);
+            doc.text('Descrizione', 55, y);
+            doc.text('Qta', 130, y);
+            doc.text('Prezzo', 145, y);
+            doc.text('Totale', 170, y);
+            y += 2;
+            doc.line(20, y, 190, y);
+            y += 6;
+            
+            doc.setFont(undefined, 'normal');
+            ordine.righe.forEach(r => {
+                doc.text(r.codice.substring(0, 18), 20, y);
+                doc.text(r.des1.substring(0, 40), 55, y);
+                doc.text(r.qta.toString(), 130, y);
+                doc.text(`€ ${r.prezzo.toFixed(2)}`, 145, y);
+                doc.text(`€ ${r.totale.toFixed(2)}`, 170, y);
+                y += 6;
+            });
+            
+            // Totali
+            y += 10;
+            doc.line(130, y, 190, y);
+            y += 8;
+            doc.text(`Netto: € ${ordine.totNetto.toFixed(2)}`, 140, y);
+            y += 6;
+            doc.text(`IVA: € ${ordine.totIva.toFixed(2)}`, 140, y);
+            y += 6;
+            doc.setFont(undefined, 'bold');
+            doc.text(`TOTALE: € ${ordine.totOrdine.toFixed(2)}`, 140, y);
+            
+            // Footer
+            doc.setFontSize(8);
+            doc.setFont(undefined, 'normal');
+            doc.text('Generato da Picam - Techmatesrls', 105, 290, { align: 'center' });
+        });
+        
+        const pdfBlob = doc.output('blob');
+        const fileName = `Report_Ordini_${dateStr.replace(/\//g, '-')}.pdf`;
+        
+        APP.currentPdfBlob = pdfBlob;
+        APP.currentPdfName = fileName;
+        
+        showStatus('ordini-sync-status', '✅ PDF generato!', 'success');
+        document.getElementById('modal-share').classList.remove('hidden');
+        
+    } catch (e) {
+        console.error('Errore generazione PDF:', e);
+        showStatus('ordini-sync-status', `Errore: ${e.message}`, 'error');
+    }
+}
+
+// ==========================================
+// CONDIVISIONE
+// ==========================================
+
+async function shareNative() {
+    if (!APP.currentPdfBlob) return;
+    
+    const file = new File([APP.currentPdfBlob], APP.currentPdfName, { type: 'application/pdf' });
+    
+    if (navigator.share && navigator.canShare({ files: [file] })) {
+        try {
+            await navigator.share({
+                files: [file],
+                title: APP.currentPdfName,
+                text: 'Report generato da Picam'
+            });
+            document.getElementById('modal-share').classList.add('hidden');
+        } catch (e) {
+            if (e.name !== 'AbortError') {
+                showToast('Errore condivisione', 'error');
+            }
+        }
+    } else {
+        showToast('Condivisione non supportata su questo dispositivo', 'error');
+    }
+}
+
+function shareWhatsApp() {
+    // WhatsApp non supporta direttamente file PDF via URL, usiamo il download + messaggio
+    shareDownload();
+    const text = encodeURIComponent(`Report Picam: ${APP.currentPdfName}`);
+    window.open(`https://wa.me/?text=${text}`, '_blank');
+    document.getElementById('modal-share').classList.add('hidden');
+}
+
+function shareEmail() {
+    const subject = encodeURIComponent(`Report Picam - ${APP.currentPdfName}`);
+    const body = encodeURIComponent(`In allegato il report generato da Picam.\n\nNota: scaricare prima il file PDF e allegarlo manualmente.`);
+    window.open(`mailto:?subject=${subject}&body=${body}`, '_blank');
+    shareDownload();
+    document.getElementById('modal-share').classList.add('hidden');
+}
+
+async function shareDrive() {
+    if (!APP.currentPdfBlob || !APP.accessToken) {
+        showToast('Effettua il login per salvare su Drive', 'error');
+        return;
+    }
+    
+    try {
+        const folderId = await findFolderByPath(APP.config.folderPath);
+        const reportFolderId = await findOrCreateFolder(folderId, 'Report');
+        
+        await uploadFileToDrive(reportFolderId, APP.currentPdfName, APP.currentPdfBlob, 'application/pdf');
+        
+        feedbackSuccess();
+        showToast(`✅ Salvato in Drive/Report/${APP.currentPdfName}`, 'success');
+        document.getElementById('modal-share').classList.add('hidden');
+    } catch (e) {
+        console.error('Errore salvataggio Drive:', e);
+        showToast(`Errore: ${e.message}`, 'error');
+    }
+}
+
+function shareDownload() {
+    if (!APP.currentPdfBlob) return;
+    
+    const url = URL.createObjectURL(APP.currentPdfBlob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = APP.currentPdfName;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    
+    showToast('Download avviato', 'success');
+    document.getElementById('modal-share').classList.add('hidden');
 }
 
 // ==========================================
@@ -1571,6 +2271,10 @@ function startScanner(mode) {
     APP.scannerCallback = mode;
     document.getElementById('scanner-overlay').classList.remove('hidden');
     
+    // Mostra hint scansione veloce
+    const fastMode = (mode === 'inventory' && APP.fastScanMode) || (mode === 'articolo-ordine' && APP.fastScanModeOrd);
+    document.getElementById('scanner-fast-hint').classList.toggle('hidden', !fastMode);
+    
     const config = {
         fps: 10,
         qrbox: { width: 250, height: 100 },
@@ -1592,34 +2296,96 @@ function startScanner(mode) {
 }
 
 function onScanSuccess(decodedText) {
-    if (navigator.vibrate) navigator.vibrate(200);
-    
-    console.log('Barcode letto:', decodedText);
-    showToast(`Letto: ${decodedText}`, 'success');
-    
     const callback = APP.scannerCallback;
-    closeScanner();
+    const fastMode = (callback === 'inventory' && APP.fastScanMode) || (callback === 'articolo-ordine' && APP.fastScanModeOrd);
+    
+    feedbackSuccess();
+    console.log('Barcode letto:', decodedText);
+    
+    if (!fastMode) {
+        // Modalità normale: chiudi scanner
+        closeScanner();
+    }
     
     setTimeout(() => {
         if (callback === 'search') {
             document.getElementById('search-input').value = decodedText;
             handleSearch();
+            if (!fastMode) closeScanner();
         } else if (callback === 'inventory') {
-            document.getElementById('inv-search-input').value = decodedText;
-            handleInventorySearch();
-            setTimeout(() => {
-                if (!APP.selectedArticle) {
-                    showToast(`Articolo "${decodedText}" non trovato`, 'error');
-                }
-            }, 300);
+            processInventoryScan(decodedText, fastMode);
         } else if (callback === 'cliente') {
             document.getElementById('ord-cliente-search').value = decodedText;
             handleClienteSearch();
+            if (!fastMode) closeScanner();
         } else if (callback === 'articolo-ordine') {
-            document.getElementById('ord-articolo-search').value = decodedText;
-            handleArticoloOrdineSearch();
+            processArticoloOrdineScan(decodedText, fastMode);
         }
     }, 100);
+}
+
+function processInventoryScan(barcode, fastMode) {
+    const art = APP.data.merged.find(a => a.barcode === barcode || a.codice === barcode);
+    
+    if (art) {
+        if (fastMode) {
+            // In modalità veloce: aggiungi direttamente con quantità 1
+            const movItem = {
+                codice: art.codice,
+                des1: art.des1,
+                locazione: art.locazione,
+                quantita: 1,
+                timestamp: new Date().toISOString()
+            };
+            
+            APP.queue.push(movItem);
+            saveQueue();
+            updateQueueBadge();
+            addToInvHistory(movItem);
+            
+            showToast(`⚡ ${art.codice}: 1`, 'success');
+        } else {
+            document.getElementById('inv-search-input').value = barcode;
+            selectArticleForInventory(art);
+        }
+    } else {
+        feedbackError();
+        showToast(`Articolo "${barcode}" non trovato`, 'error');
+    }
+}
+
+function processArticoloOrdineScan(barcode, fastMode) {
+    const art = APP.data.merged.find(a => a.barcode === barcode || a.codice === barcode);
+    
+    if (art) {
+        if (fastMode) {
+            // In modalità veloce: aggiungi direttamente con quantità 1 e prezzo listino 1
+            const riga = {
+                codice: art.codice,
+                des1: art.des1,
+                des2: art.des2,
+                um: art.um,
+                qta: 1,
+                prezzo: art.lis1 || 0,
+                sconto: 0,
+                codIva: art.codIva || 22,
+                totale: art.lis1 || 0
+            };
+            
+            APP.currentOrdine.righe.push(riga);
+            renderOrdineRighe();
+            updateOrdineTotali();
+            updateConfermaButton();
+            
+            showToast(`⚡ ${art.codice} aggiunto`, 'success');
+        } else {
+            document.getElementById('ord-articolo-search').value = barcode;
+            openModalAddRiga(art);
+        }
+    } else {
+        feedbackError();
+        showToast(`Articolo "${barcode}" non trovato`, 'error');
+    }
 }
 
 function closeScanner() {

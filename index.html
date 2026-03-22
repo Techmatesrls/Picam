@@ -31,6 +31,9 @@
     <!-- Html5-QRCode per scanner barcode -->
     <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
     
+    <!-- jsPDF per generazione PDF -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    
     <link rel="stylesheet" href="styles.css">
 </head>
 <body>
@@ -101,7 +104,7 @@
             </div>
             
             <div class="setup-footer">
-                <p>Versione 2.0 - Techmatesrls</p>
+                <p>Versione 2.1.0 - Techmatesrls</p>
             </div>
         </div>
     </div>
@@ -129,12 +132,14 @@
                     <div class="menu-card-icon">📋</div>
                     <div class="menu-card-title">Inventario</div>
                     <div class="menu-card-desc">Gestione inventario magazzino</div>
+                    <div class="menu-card-badge" id="menu-badge-inv"></div>
                 </button>
                 
                 <button id="btn-open-ordini" class="menu-card">
                     <div class="menu-card-icon">🛒</div>
                     <div class="menu-card-title">Ordini</div>
                     <div class="menu-card-desc">Creazione ordini clienti</div>
+                    <div class="menu-card-badge" id="menu-badge-ord"></div>
                 </button>
             </div>
             
@@ -307,6 +312,15 @@
         <!-- TAB INVENTARIO -->
         <div id="tab-inventario" class="tab-content">
             <div class="inventory-container">
+                <!-- Toggle Scansione Veloce -->
+                <div class="scan-mode-toggle">
+                    <label class="toggle-label">
+                        <input type="checkbox" id="toggle-fast-scan">
+                        <span class="toggle-slider"></span>
+                        <span class="toggle-text">⚡ Scansione veloce</span>
+                    </label>
+                </div>
+                
                 <div class="search-section compact">
                     <div class="search-bar">
                         <span class="search-icon">🔍</span>
@@ -345,6 +359,14 @@
                         Conferma e Registra
                     </button>
                 </div>
+                
+                <!-- Ultimi articoli inventariati -->
+                <div id="inv-history" class="inv-history">
+                    <div class="history-header">
+                        <h4>📜 Ultimi inseriti</h4>
+                    </div>
+                    <div id="inv-history-list" class="history-list"></div>
+                </div>
             </div>
         </div>
         
@@ -356,6 +378,12 @@
                     <span id="queue-count" class="queue-count">0 movimenti</span>
                 </div>
                 
+                <!-- Riepilogo per locazione -->
+                <div id="queue-summary" class="queue-summary hidden">
+                    <h4>📊 Riepilogo</h4>
+                    <div id="queue-summary-content"></div>
+                </div>
+                
                 <div id="queue-list" class="queue-list">
                     <p class="empty-message">Nessun movimento in coda</p>
                 </div>
@@ -363,12 +391,18 @@
                 <div class="queue-actions">
                     <button id="btn-sync" class="btn-primary" disabled>
                         <span class="btn-icon">📤</span>
-                        Sincronizza su Google Drive
+                        Sincronizza su Drive
                     </button>
-                    <button id="btn-clear-queue" class="btn-danger" disabled>
-                        <span class="btn-icon">🗑️</span>
-                        Svuota coda
-                    </button>
+                    <div class="queue-actions-row">
+                        <button id="btn-report-inv" class="btn-secondary" disabled>
+                            <span class="btn-icon">📄</span>
+                            Report PDF
+                        </button>
+                        <button id="btn-clear-queue" class="btn-danger" disabled>
+                            <span class="btn-icon">🗑️</span>
+                            Svuota
+                        </button>
+                    </div>
                 </div>
                 
                 <div id="sync-status" class="status-message"></div>
@@ -445,6 +479,14 @@
             <!-- Sezione Articoli -->
             <section class="ordine-section">
                 <h3>📦 Articoli</h3>
+                <!-- Toggle Scansione Veloce Ordini -->
+                <div class="scan-mode-toggle small">
+                    <label class="toggle-label">
+                        <input type="checkbox" id="toggle-fast-scan-ord">
+                        <span class="toggle-slider"></span>
+                        <span class="toggle-text">⚡ Veloce</span>
+                    </label>
+                </div>
                 <div class="search-bar">
                     <span class="search-icon">🔍</span>
                     <input type="text" id="ord-articolo-search" placeholder="Aggiungi articolo...">
@@ -537,6 +579,41 @@
     </div>
 
     <!-- ============================================ -->
+    <!-- MODAL MODIFICA MOVIMENTO INVENTARIO          -->
+    <!-- ============================================ -->
+    <div id="modal-edit-mov" class="modal-overlay hidden">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>✏️ Modifica Movimento</h3>
+                <button id="btn-close-edit-mov" class="btn-close">✕</button>
+            </div>
+            <div class="modal-body">
+                <div class="edit-mov-info">
+                    <div class="edit-mov-codice" id="edit-mov-codice"></div>
+                    <div class="edit-mov-desc" id="edit-mov-desc"></div>
+                    <div class="edit-mov-loc" id="edit-mov-loc"></div>
+                </div>
+                
+                <div class="edit-mov-field">
+                    <label>Nuova Quantità</label>
+                    <input type="number" id="edit-mov-qta" min="0">
+                </div>
+                
+                <div class="edit-mov-actions">
+                    <button id="btn-save-edit-mov" class="btn-primary">
+                        <span class="btn-icon">💾</span>
+                        Salva
+                    </button>
+                    <button id="btn-delete-mov" class="btn-danger">
+                        <span class="btn-icon">🗑️</span>
+                        Elimina
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ============================================ -->
     <!-- MODAL LISTA CLIENTI                          -->
     <!-- ============================================ -->
     <div id="modal-clienti" class="modal-overlay hidden">
@@ -572,7 +649,7 @@
     <div id="modal-ordini-list" class="modal-overlay hidden">
         <div class="modal-content modal-large">
             <div class="modal-header">
-                <h3>Ordini in Coda</h3>
+                <h3>📋 Ordini in Coda</h3>
                 <button id="btn-close-ordini-list" class="btn-close">✕</button>
             </div>
             <div class="modal-body">
@@ -580,14 +657,82 @@
                 <div class="queue-actions" style="margin-top: 16px;">
                     <button id="btn-sync-ordini" class="btn-primary" disabled>
                         <span class="btn-icon">📤</span>
-                        Sincronizza su Google Drive
+                        Sincronizza su Drive
                     </button>
-                    <button id="btn-clear-ordini" class="btn-danger" disabled>
-                        <span class="btn-icon">🗑️</span>
-                        Svuota coda ordini
-                    </button>
+                    <div class="queue-actions-row">
+                        <button id="btn-report-ordini" class="btn-secondary" disabled>
+                            <span class="btn-icon">📄</span>
+                            Report PDF
+                        </button>
+                        <button id="btn-clear-ordini" class="btn-danger" disabled>
+                            <span class="btn-icon">🗑️</span>
+                            Svuota
+                        </button>
+                    </div>
                 </div>
                 <div id="ordini-sync-status" class="status-message"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ============================================ -->
+    <!-- MODAL MODIFICA ORDINE                        -->
+    <!-- ============================================ -->
+    <div id="modal-edit-ordine" class="modal-overlay hidden">
+        <div class="modal-content modal-large">
+            <div class="modal-header">
+                <h3>✏️ Modifica Ordine #<span id="edit-ord-num"></span></h3>
+                <button id="btn-close-edit-ordine" class="btn-close">✕</button>
+            </div>
+            <div class="modal-body">
+                <div class="edit-ord-cliente" id="edit-ord-cliente"></div>
+                <div id="edit-ord-righe" class="righe-list"></div>
+                <div class="edit-ord-totale">
+                    <span>Totale:</span>
+                    <span id="edit-ord-totale-val"></span>
+                </div>
+                <div class="edit-ord-actions">
+                    <button id="btn-save-edit-ordine" class="btn-primary">
+                        <span class="btn-icon">💾</span>
+                        Salva Modifiche
+                    </button>
+                    <button id="btn-delete-ordine" class="btn-danger">
+                        <span class="btn-icon">🗑️</span>
+                        Elimina Ordine
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ============================================ -->
+    <!-- MODAL CONDIVISIONE                           -->
+    <!-- ============================================ -->
+    <div id="modal-share" class="modal-overlay hidden">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>📤 Condividi Report</h3>
+                <button id="btn-close-share" class="btn-close">✕</button>
+            </div>
+            <div class="modal-body">
+                <p class="share-desc">Il report PDF è pronto. Come vuoi condividerlo?</p>
+                <div class="share-buttons">
+                    <button id="btn-share-native" class="btn-share">
+                        <span>📤</span> Condividi...
+                    </button>
+                    <button id="btn-share-whatsapp" class="btn-share whatsapp">
+                        <span>💬</span> WhatsApp
+                    </button>
+                    <button id="btn-share-email" class="btn-share email">
+                        <span>📧</span> Email
+                    </button>
+                    <button id="btn-share-drive" class="btn-share drive">
+                        <span>☁️</span> Salva su Drive
+                    </button>
+                    <button id="btn-share-download" class="btn-share download">
+                        <span>💾</span> Scarica
+                    </button>
+                </div>
             </div>
         </div>
     </div>
@@ -603,12 +748,21 @@
             </div>
             <div id="scanner-reader"></div>
             <p class="scanner-hint">Inquadra il codice a barre</p>
+            <p id="scanner-fast-hint" class="scanner-fast-hint hidden">⚡ Modalità veloce: scansione continua attiva</p>
             <button id="btn-cancel-scanner" class="btn-cancel-scanner">Annulla</button>
         </div>
     </div>
     
     <!-- TOAST NOTIFICATIONS -->
     <div id="toast-container" class="toast-container"></div>
+    
+    <!-- AUDIO FEEDBACK -->
+    <audio id="audio-success" preload="auto">
+        <source src="data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1fdH2Onp2PfnJ2hpOVjYF4dH6IjYyGfnp/hIaFgX59f4KDgoB+fn+AgYGAf39/gICAf39/gICAf39/gICAf39/gICAf39/gICAf3+AgH9/f4CAf39/gIB/f3+Af39/gIB/f3+AgH9/f4CAf39/gIB/f4CAf3+AgIB/f4CAf3+AgIB/f4CAf3+AgIB/gICAgH+AgIB/gICAgH+AgIB/gICAgICA" type="audio/wav">
+    </audio>
+    <audio id="audio-error" preload="auto">
+        <source src="data:audio/wav;base64,UklGRl9vT19teleVAQAIAGRhdGFAAAEAgICAgA==" type="audio/wav">
+    </audio>
     
     <script src="app.js"></script>
 </body>

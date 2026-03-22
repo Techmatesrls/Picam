@@ -1,12 +1,13 @@
 {
     "name": "Picam",
     "short_name": "Picam",
+    "version": "2.1.0",
     "description": "Gestione Inventario e Ordini",
     "start_url": "./",
     "display": "standalone",
-    "background_color": "#0f0f1a",
+    "background_color": "#1a1a2e",
     "theme_color": "#1a1a2e",
-    "orientation": "portrait",
+    "orientation": "portrait-primary",
     "icons": [
         {
             "src": "icon-192.png",
