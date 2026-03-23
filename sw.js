@@ -1,5 +1,5 @@
 // Service Worker - Picam v2.1.0
-const CACHE_NAME = 'picam-v10';
+const CACHE_NAME = 'picam-v11';
 
 const ASSETS = [
     './',

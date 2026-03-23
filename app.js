@@ -257,6 +257,7 @@ function initEventListeners() {
     
     // Inventario - Coda
     document.getElementById('btn-sync').addEventListener('click', syncQueue);
+    document.getElementById('btn-export-invenmag').addEventListener('click', exportInvenmag);
     document.getElementById('btn-clear-queue').addEventListener('click', clearQueue);
     document.getElementById('btn-report-inv').addEventListener('click', generateInventoryReport);
     
@@ -1271,6 +1272,7 @@ function renderQueue() {
     const container = document.getElementById('queue-list');
     const countEl = document.getElementById('queue-count');
     const btnSync = document.getElementById('btn-sync');
+    const btnInvenmag = document.getElementById('btn-export-invenmag');
     const btnClear = document.getElementById('btn-clear-queue');
     const btnReport = document.getElementById('btn-report-inv');
     const summaryEl = document.getElementById('queue-summary');
@@ -1279,6 +1281,7 @@ function renderQueue() {
     
     const hasItems = APP.queue.length > 0;
     btnSync.disabled = !hasItems;
+    btnInvenmag.disabled = !hasItems;
     btnClear.disabled = !hasItems;
     btnReport.disabled = !hasItems;
     
@@ -1402,6 +1405,201 @@ function clearQueue() {
     updateMenuBadges();
     renderQueue();
     showToast('Coda svuotata', 'success');
+}
+
+// ==========================================
+// EXPORT INVENMAG.XLSX
+// ==========================================
+
+async function exportInvenmag() {
+    if (APP.queue.length === 0) {
+        showToast('Nessun movimento da esportare', 'error');
+        return;
+    }
+    if (!APP.accessToken) {
+        showStatus('sync-status', 'Effettua il login', 'error');
+        return;
+    }
+    
+    showStatus('sync-status', 'Creazione INVENMAG.xlsx...', 'loading');
+    
+    try {
+        // Prepara i dati nel formato INVENMAG
+        const today = new Date();
+        const dataReg = today.toLocaleDateString('it-IT', {
+            day: '2-digit',
+            month: '2-digit',
+            year: 'numeric'
+        }).split('/').join('/'); // DD/MM/YYYY
+        
+        const deposito = APP.config.deposito || '001';
+        
+        // Header del file
+        const headers = [
+            'ima_car_del',
+            'ima_cod_ute',
+            'ima_dat_reg',
+            'ima_cod_dep',
+            'ima_cod_art',
+            'ima_num_lot',
+            'ima_qta',
+            'ima_not',
+            'ima_filler'
+        ];
+        
+        // Dati: una riga per ogni movimento in coda
+        const rows = APP.queue.map(item => [
+            '',              // ima_car_del - vuoto
+            '',              // ima_cod_ute - vuoto
+            dataReg,         // ima_dat_reg - data di sistema
+            deposito,        // ima_cod_dep - deposito configurato
+            item.codice,     // ima_cod_art - codice articolo
+            '',              // ima_num_lot - vuoto per ora
+            item.quantita,   // ima_qta - quantità inventariata
+            '',              // ima_not - vuoto
+            ''               // ima_filler - vuoto
+        ]);
+        
+        // Crea il workbook con SheetJS
+        const wb = XLSX.utils.book_new();
+        const wsData = [headers, ...rows];
+        const ws = XLSX.utils.aoa_to_sheet(wsData);
+        
+        // Imposta larghezza colonne
+        ws['!cols'] = [
+            { wch: 12 }, // ima_car_del
+            { wch: 12 }, // ima_cod_ute
+            { wch: 12 }, // ima_dat_reg
+            { wch: 12 }, // ima_cod_dep
+            { wch: 20 }, // ima_cod_art
+            { wch: 15 }, // ima_num_lot
+            { wch: 12 }, // ima_qta
+            { wch: 30 }, // ima_not
+            { wch: 10 }  // ima_filler
+        ];
+        
+        XLSX.utils.book_append_sheet(wb, ws, 'INVENMAG');
+        
+        // Genera il file come array di byte
+        const wbout = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
+        const blob = new Blob([wbout], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+        
+        // Upload su Google Drive
+        const folderId = await findFolderByPath(APP.config.folderPath);
+        await uploadBlobToDrive(folderId, 'INVENMAG.xlsx', blob, 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+        
+        // Svuota la coda dopo l'upload
+        APP.queue = [];
+        saveQueue();
+        updateQueueBadge();
+        updateMenuBadges();
+        renderQueue();
+        
+        feedbackSuccess();
+        showStatus('sync-status', '✅ INVENMAG.xlsx caricato!', 'success');
+        showToast('✅ INVENMAG.xlsx salvato su Drive', 'success');
+        
+    } catch (e) {
+        console.error('Errore export INVENMAG:', e);
+        feedbackError();
+        showStatus('sync-status', `Errore: ${e.message}`, 'error');
+    }
+}
+
+// Funzione per upload di Blob su Google Drive
+async function uploadBlobToDrive(folderId, fileName, blob, mimeType) {
+    // Cerca se il file esiste già
+    const searchUrl = `https://www.googleapis.com/drive/v3/files?q=name='${fileName}' and '${folderId}' in parents and trashed=false&fields=files(id,name)`;
+    const searchResp = await fetch(searchUrl, {
+        headers: { 'Authorization': `Bearer ${APP.accessToken}` }
+    });
+    const searchData = await searchResp.json();
+    
+    const metadata = {
+        name: fileName,
+        mimeType: mimeType
+    };
+    
+    // Leggi il blob come ArrayBuffer
+    const arrayBuffer = await blob.arrayBuffer();
+    const uint8Array = new Uint8Array(arrayBuffer);
+    
+    // Costruisci manualmente il multipart
+    const boundary = '-------314159265358979323846';
+    const delimiter = "\r\n--" + boundary + "\r\n";
+    const closeDelimiter = "\r\n--" + boundary + "--";
+    
+    // Parte metadata
+    let metadataPart = delimiter;
+    metadataPart += 'Content-Type: application/json; charset=UTF-8\r\n\r\n';
+    
+    if (searchData.files && searchData.files.length > 0) {
+        // File esiste, aggiorna
+        const fileId = searchData.files[0].id;
+        metadataPart += JSON.stringify({ name: fileName });
+        
+        const updateUrl = `https://www.googleapis.com/upload/drive/v3/files/${fileId}?uploadType=multipart`;
+        
+        // Costruisci body binario
+        const metadataBytes = new TextEncoder().encode(metadataPart);
+        const contentTypeHeader = new TextEncoder().encode(delimiter + `Content-Type: ${mimeType}\r\n\r\n`);
+        const closeBytes = new TextEncoder().encode(closeDelimiter);
+        
+        const bodyLength = metadataBytes.length + contentTypeHeader.length + uint8Array.length + closeBytes.length;
+        const body = new Uint8Array(bodyLength);
+        let offset = 0;
+        body.set(metadataBytes, offset); offset += metadataBytes.length;
+        body.set(contentTypeHeader, offset); offset += contentTypeHeader.length;
+        body.set(uint8Array, offset); offset += uint8Array.length;
+        body.set(closeBytes, offset);
+        
+        const resp = await fetch(updateUrl, {
+            method: 'PATCH',
+            headers: {
+                'Authorization': `Bearer ${APP.accessToken}`,
+                'Content-Type': `multipart/related; boundary=${boundary}`
+            },
+            body: body
+        });
+        
+        if (!resp.ok) {
+            const err = await resp.text();
+            throw new Error(`Upload fallito: ${err}`);
+        }
+    } else {
+        // File non esiste, crea nuovo
+        metadata.parents = [folderId];
+        metadataPart += JSON.stringify(metadata);
+        
+        const createUrl = 'https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart';
+        
+        // Costruisci body binario
+        const metadataBytes = new TextEncoder().encode(metadataPart);
+        const contentTypeHeader = new TextEncoder().encode(delimiter + `Content-Type: ${mimeType}\r\n\r\n`);
+        const closeBytes = new TextEncoder().encode(closeDelimiter);
+        
+        const bodyLength = metadataBytes.length + contentTypeHeader.length + uint8Array.length + closeBytes.length;
+        const body = new Uint8Array(bodyLength);
+        let offset = 0;
+        body.set(metadataBytes, offset); offset += metadataBytes.length;
+        body.set(contentTypeHeader, offset); offset += contentTypeHeader.length;
+        body.set(uint8Array, offset); offset += uint8Array.length;
+        body.set(closeBytes, offset);
+        
+        const resp = await fetch(createUrl, {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${APP.accessToken}`,
+                'Content-Type': `multipart/related; boundary=${boundary}`
+            },
+            body: body
+        });
+        
+        if (!resp.ok) {
+            const err = await resp.text();
+            throw new Error(`Upload fallito: ${err}`);
+        }
+    }
 }
 
 // ==========================================
