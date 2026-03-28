@@ -155,7 +155,7 @@ const CACHE_NAME = 'picam-cache-v14'; // incrementare il numero
 Aggiungere un parametro query string all'URL:
 
 ```
-https://techmatesrls.github.io/Picam?v=14
+https://techmatesrls.github.io/Picam?v=15
 ```
 
 ---
@@ -221,7 +221,10 @@ Software proprietario - Tutti i diritti riservati.
 - ⚡ IndexedDB per supporto grandi database (100k+ articoli)
 - 🔍 Ricerca indicizzata ultra-veloce
 - 📱 Ottimizzazione visibilità in luce
-- 🔄 Cache v13
+- 💰 Visualizzazione prezzo vendita/acquisto negli ordini
+- 📦 Visualizzazione giacenza nelle righe ordine
+- 🐛 Fix selezione articoli con event delegation
+- 🔄 Cache v15
 
 ### v2.3 (Marzo 2026)
 - Aggiunta gestione ordini fornitori

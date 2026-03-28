@@ -10,7 +10,7 @@ const APP = {
     userEmail: null,
     config: {
         folder: 'archivi/Ordini',
-        deposito: '001'
+        deposito: '01'
     },
     
     // Scanner
@@ -162,7 +162,7 @@ APP.loadAllData = async function() {
     try {
         // Salva configurazione
         APP.config.folder = document.getElementById('config-folder').value || 'archivi/Ordini';
-        APP.config.deposito = document.getElementById('config-deposito').value || '001';
+        APP.config.deposito = document.getElementById('config-deposito').value || '01';
         localStorage.setItem('picam_config', JSON.stringify(APP.config));
         
         // Inizializza IndexedDB
@@ -335,6 +335,8 @@ APP.mergeArticoli = function(articoli, codbar, artdep) {
         const um = (art.art_uni_mis || art.ART_UNI_MIS || '').toString().trim();
         const gruppo = (art.art_gru || art.ART_GRU || '').toString().trim();
         const prezzo = parseFloat(art.art_pre_ven || art.ART_PRE_VEN || 0) || 0;
+        const prezzoVendita = parseFloat(art.art_prz_ult_ven || art.ART_PRZ_ULT_VEN || 0) || 0;
+        const prezzoAcquisto = parseFloat(art.art_prz_ult_acq || art.ART_PRZ_ULT_ACQ || 0) || 0;
         
         const barcode = codbarMap.get(codice) || '';
         const depInfo = artdepMap.get(codice) || { giacenza: 0, locazione: '' };
@@ -346,6 +348,8 @@ APP.mergeArticoli = function(articoli, codbar, artdep) {
             um,
             gruppo,
             prezzo,
+            prezzoVendita,
+            prezzoAcquisto,
             barcode,
             giacenza: depInfo.giacenza,
             locazione: depInfo.locazione
@@ -623,50 +627,70 @@ APP.renderSearchResults = function(results, container, context) {
         return;
     }
     
+    // Salva risultati in variabile globale per accesso successivo
+    if (!APP.searchResults) APP.searchResults = {};
+    APP.searchResults[context] = results;
+    
+    // Funzione per escape HTML
+    const escapeHtml = (str) => {
+        if (str === null || str === undefined) return '';
+        return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+    };
+    
     let html = '';
     
     if (context === 'cliente') {
-        results.forEach(cli => {
+        results.forEach((cli, index) => {
             html += `
-                <div class="result-item" onclick="APP.selectCliente('${cli.codice}')">
-                    <span class="result-code">${cli.codice}</span>
+                <div class="result-item" onclick="APP.onResultClick('${context}', ${index})">
+                    <span class="result-code">${escapeHtml(cli.codice)}</span>
                     <div class="result-info">
-                        <div class="result-name">${cli.ragSoc1}</div>
+                        <div class="result-name">${escapeHtml(cli.ragSoc1)}</div>
                         <div class="result-meta">
-                            <span>${cli.localita}</span>
-                            <span>${cli.partitaIva}</span>
+                            <span>${escapeHtml(cli.localita || '')}</span>
+                            <span>${escapeHtml(cli.partitaIva || '')}</span>
                         </div>
                     </div>
                 </div>
             `;
         });
     } else if (context === 'fornitore') {
-        results.forEach(forn => {
+        results.forEach((forn, index) => {
             html += `
-                <div class="result-item fornitore" onclick="APP.selectFornitore('${forn.codice}')">
-                    <span class="result-code">${forn.codice}</span>
+                <div class="result-item fornitore" onclick="APP.onResultClick('${context}', ${index})">
+                    <span class="result-code">${escapeHtml(forn.codice)}</span>
                     <div class="result-info">
-                        <div class="result-name">${forn.ragSoc1}</div>
+                        <div class="result-name">${escapeHtml(forn.ragSoc1)}</div>
                         <div class="result-meta">
-                            <span>${forn.localita}</span>
-                            <span>${forn.partitaIva}</span>
+                            <span>${escapeHtml(forn.localita || '')}</span>
+                            <span>${escapeHtml(forn.partitaIva || '')}</span>
                         </div>
                     </div>
                 </div>
             `;
         });
     } else {
-        // Articoli
-        results.forEach(art => {
+        // Articoli - mostra info diverse in base al contesto
+        const isOrdCli = (context === 'artOrdCli');
+        const isOrdFor = (context === 'artOrdFor');
+        
+        results.forEach((art, index) => {
+            let prezzoInfo = '';
+            if (isOrdCli && art.prezzoVendita) {
+                prezzoInfo = `<span>💰 €${art.prezzoVendita.toFixed(2)}</span>`;
+            } else if (isOrdFor && art.prezzoAcquisto) {
+                prezzoInfo = `<span>💰 €${art.prezzoAcquisto.toFixed(2)}</span>`;
+            }
+            
             html += `
-                <div class="result-item" onclick="APP.selectArticolo('${art.codice}', '${context}')">
-                    <span class="result-code">${art.codice}</span>
+                <div class="result-item" onclick="APP.onResultClick('${context}', ${index})">
+                    <span class="result-code">${escapeHtml(art.codice)}</span>
                     <div class="result-info">
-                        <div class="result-name">${art.des1}</div>
+                        <div class="result-name">${escapeHtml(art.des1)}</div>
                         <div class="result-meta">
-                            <span>📍 ${art.locazione || '-'}</span>
-                            <span>📦 ${art.giacenza}</span>
-                            ${art.barcode ? `<span>🔖 ${art.barcode}</span>` : ''}
+                            <span>📦 ${art.giacenza || 0} ${escapeHtml(art.um || '')}</span>
+                            ${prezzoInfo}
+                            ${art.locazione ? `<span>📍 ${escapeHtml(art.locazione)}</span>` : ''}
                         </div>
                     </div>
                 </div>
@@ -677,12 +701,44 @@ APP.renderSearchResults = function(results, container, context) {
     container.innerHTML = html;
 };
 
+// Handler unico per tutti i click sui risultati
+APP.onResultClick = function(context, index) {
+    console.log('onResultClick:', context, index);
+    
+    if (!APP.searchResults || !APP.searchResults[context]) {
+        console.error('Nessun risultato trovato per context:', context);
+        return;
+    }
+    
+    const item = APP.searchResults[context][index];
+    if (!item) {
+        console.error('Item non trovato:', index);
+        return;
+    }
+    
+    console.log('Item selezionato:', item);
+    
+    switch (context) {
+        case 'cliente':
+            APP.handleSelectCliente(item);
+            break;
+        case 'fornitore':
+            APP.handleSelectFornitore(item);
+            break;
+        case 'inv':
+        case 'artOrdCli':
+        case 'artOrdFor':
+            APP.handleSelectArticolo(item, context);
+            break;
+    }
+};
+
 // ==========================================
 // SELEZIONE ARTICOLO
 // ==========================================
 
-APP.selectArticolo = async function(codice, context) {
-    const articolo = await DB.getArticoloByCode(codice);
+// Handler per selezione articolo (riceve oggetto direttamente)
+APP.handleSelectArticolo = function(articolo, context) {
     if (!articolo) {
         APP.showToast('Articolo non trovato', 'error');
         return;
@@ -729,6 +785,50 @@ APP.selectArticolo = async function(codice, context) {
         document.getElementById(inputIds[context]).value = '';
         document.getElementById(resultsIds[context]).innerHTML = '';
     }
+};
+
+// Handler per selezione cliente (riceve oggetto direttamente)
+APP.handleSelectCliente = function(cliente) {
+    if (!cliente) {
+        APP.showToast('Cliente non trovato', 'error');
+        return;
+    }
+    
+    APP.currentOrdineClienti.cliente = cliente;
+    APP.renderSelectedCliente();
+    
+    // Pulisci ricerca
+    document.getElementById('search-cliente').value = '';
+    document.getElementById('results-cliente').innerHTML = '';
+    
+    APP.updateBtnConfermaOrdCli();
+};
+
+// Handler per selezione fornitore (riceve oggetto direttamente)
+APP.handleSelectFornitore = function(fornitore) {
+    if (!fornitore) {
+        APP.showToast('Fornitore non trovato', 'error');
+        return;
+    }
+    
+    APP.currentOrdineFornitori.fornitore = fornitore;
+    APP.renderSelectedFornitore();
+    
+    // Pulisci ricerca
+    document.getElementById('search-fornitore').value = '';
+    document.getElementById('results-fornitore').innerHTML = '';
+    
+    APP.updateBtnConfermaOrdFor();
+};
+
+// Vecchia funzione selectArticolo (per compatibilità con scanner)
+APP.selectArticolo = async function(codice, context) {
+    const articolo = await DB.getArticoloByCode(codice);
+    if (!articolo) {
+        APP.showToast('Articolo non trovato', 'error');
+        return;
+    }
+    APP.handleSelectArticolo(articolo, context);
 };
 
 APP.processArticoloWithQty = async function(qty) {
@@ -1015,23 +1115,11 @@ APP.renderHistory = function() {
 // CLIENTI
 // ==========================================
 
+// Vecchia funzione selectCliente per compatibilità
 APP.selectCliente = async function(codice) {
     const clienti = await DB.getAllClienti();
     const cliente = clienti.find(c => c.codice === codice);
-    
-    if (!cliente) {
-        APP.showToast('Cliente non trovato', 'error');
-        return;
-    }
-    
-    APP.currentOrdineClienti.cliente = cliente;
-    APP.renderSelectedCliente();
-    
-    // Pulisci ricerca
-    document.getElementById('search-cliente').value = '';
-    document.getElementById('results-cliente').innerHTML = '';
-    
-    APP.updateBtnConfermaOrdCli();
+    APP.handleSelectCliente(cliente);
 };
 
 APP.renderSelectedCliente = function() {
@@ -1065,23 +1153,11 @@ APP.renderSelectedCliente = function() {
 // FORNITORI
 // ==========================================
 
+// Vecchia funzione selectFornitore per compatibilità
 APP.selectFornitore = async function(codice) {
     const fornitori = await DB.getAllFornitori();
     const fornitore = fornitori.find(f => f.codice === codice);
-    
-    if (!fornitore) {
-        APP.showToast('Fornitore non trovato', 'error');
-        return;
-    }
-    
-    APP.currentOrdineFornitori.fornitore = fornitore;
-    APP.renderSelectedFornitore();
-    
-    // Pulisci ricerca
-    document.getElementById('search-fornitore').value = '';
-    document.getElementById('results-fornitore').innerHTML = '';
-    
-    APP.updateBtnConfermaOrdFor();
+    APP.handleSelectFornitore(fornitore);
 };
 
 APP.renderSelectedFornitore = function() {
@@ -1127,7 +1203,8 @@ APP.addRigaOrdineCliente = function(articolo, qty) {
             des1: articolo.des1,
             des2: articolo.des2,
             um: articolo.um,
-            prezzo: articolo.prezzo,
+            prezzo: articolo.prezzoVendita || articolo.prezzo || 0,
+            giacenza: articolo.giacenza || 0,
             qty: qty
         });
     }
@@ -1167,6 +1244,7 @@ APP.renderRigheOrdineClienti = function() {
                     <div class="riga-desc">${riga.des1}</div>
                     <div class="riga-details">
                         <span>Qta: ${riga.qty} ${riga.um}</span>
+                        <span>📦 Giac: ${riga.giacenza || 0}</span>
                         <span class="riga-totale">€ ${totRiga.toFixed(2)}</span>
                     </div>
                 </div>
@@ -1203,7 +1281,8 @@ APP.addRigaOrdineFornitore = function(articolo, qty) {
             des1: articolo.des1,
             des2: articolo.des2,
             um: articolo.um,
-            prezzo: articolo.prezzo,
+            prezzo: articolo.prezzoAcquisto || articolo.prezzo || 0,
+            giacenza: articolo.giacenza || 0,
             qty: qty
         });
     }
@@ -1243,6 +1322,7 @@ APP.renderRigheOrdineFornitori = function() {
                     <div class="riga-desc">${riga.des1}</div>
                     <div class="riga-details">
                         <span>Qta: ${riga.qty} ${riga.um}</span>
+                        <span>📦 Giac: ${riga.giacenza || 0}</span>
                         <span class="riga-totale">€ ${totRiga.toFixed(2)}</span>
                     </div>
                 </div>
@@ -1836,7 +1916,7 @@ APP.closeSettings = function() {
 
 APP.saveSettings = function() {
     APP.config.folder = document.getElementById('settings-folder').value || 'archivi/Ordini';
-    APP.config.deposito = document.getElementById('settings-deposito').value || '001';
+    APP.config.deposito = document.getElementById('settings-deposito').value || '01';
     
     localStorage.setItem('picam_config', JSON.stringify(APP.config));
     

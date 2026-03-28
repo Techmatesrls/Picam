@@ -469,6 +469,7 @@ const DB = {
     deleteFromQueue,
     getQueue,
     clearQueue,
+    countStore,  // Espongo la funzione generica countStore
     
     // Metadata
     setMetadata,
