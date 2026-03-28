@@ -720,16 +720,21 @@ APP.onResultClick = function(context, index) {
     
     switch (context) {
         case 'cliente':
+            console.log('Chiamando handleSelectCliente');
             APP.handleSelectCliente(item);
             break;
         case 'fornitore':
+            console.log('Chiamando handleSelectFornitore');
             APP.handleSelectFornitore(item);
             break;
         case 'inv':
         case 'artOrdCli':
         case 'artOrdFor':
+            console.log('Chiamando handleSelectArticolo con context:', context);
             APP.handleSelectArticolo(item, context);
             break;
+        default:
+            console.error('Context non riconosciuto:', context);
     }
 };
 
@@ -739,6 +744,8 @@ APP.onResultClick = function(context, index) {
 
 // Handler per selezione articolo (riceve oggetto direttamente)
 APP.handleSelectArticolo = function(articolo, context) {
+    console.log('handleSelectArticolo chiamato:', articolo, context);
+    
     if (!articolo) {
         APP.showToast('Articolo non trovato', 'error');
         return;
@@ -746,6 +753,8 @@ APP.handleSelectArticolo = function(articolo, context) {
     
     APP.selectedArticolo = articolo;
     APP.qtyContext = context;
+    
+    console.log('selectedArticolo impostato, qtyContext:', context);
     
     // Determina se modalità veloce
     let fastMode = false;
@@ -761,11 +770,15 @@ APP.handleSelectArticolo = function(articolo, context) {
             break;
     }
     
+    console.log('fastMode:', fastMode);
+    
     if (fastMode) {
         // Aggiungi direttamente con qta 1
+        console.log('Chiamando processArticoloWithQty(1)');
         APP.processArticoloWithQty(1);
     } else {
         // Mostra modal quantità
+        console.log('Chiamando openQtyModal()');
         APP.openQtyModal();
     }
     
