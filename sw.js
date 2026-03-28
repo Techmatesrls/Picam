@@ -1,9 +1,9 @@
 // ==========================================
 // PICAM v3.0 - Service Worker
-// Cache Version: v16
+// Cache Version: v17
 // ==========================================
 
-const CACHE_NAME = 'picam-cache-v16';
+const CACHE_NAME = 'picam-cache-v17';
 const ASSETS = [
     './',
     './index.html',
