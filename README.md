@@ -1,197 +1,239 @@
-# 📦 Picam PWA
+# 📦 Picam v3.0
 
-**Applicazione Web Progressiva per Inventario e Ordini**
+**Gestione Inventario e Ordini con sincronizzazione Google Drive**
 
-[![GitHub Pages](https://img.shields.io/badge/Deploy-GitHub%20Pages-blue)](https://techmatesrls.github.io/Picam)
-[![Version](https://img.shields.io/badge/Versione-2.2-green)]()
-[![PWA](https://img.shields.io/badge/PWA-Ready-purple)]()
+[![PWA](https://img.shields.io/badge/PWA-Ready-blue)](https://techmatesrls.github.io/Picam)
+[![License](https://img.shields.io/badge/License-Proprietary-red)]()
+[![Version](https://img.shields.io/badge/Version-3.0-green)]()
 
----
-
-## 🎯 Panoramica
-
-Picam PWA è un'applicazione web progressiva progettata per modernizzare la gestione di inventario e ordini del gestionale Picam. Funziona su smartphone, tablet e desktop, con o senza connessione internet.
-
-### ✨ Caratteristiche Principali
-
-- 📱 **Installabile** come app nativa su Android e iOS
-- 📷 **Scanner barcode** integrato tramite fotocamera
-- ☁️ **Sincronizzazione** con Google Drive
-- 🔄 **Funziona offline** grazie al Service Worker
-- 📊 **Export multiplo**: movint.txt, INVENMAG.xlsx, PDF
+Picam è un'applicazione web progressiva (PWA) per la gestione di inventario e ordini, progettata per funzionare su smartphone e tablet con sincronizzazione automatica su Google Drive.
 
 ---
 
-## 🚀 Accesso Rapido
+## ✨ Caratteristiche
 
-### URL Applicazione
-```
-https://techmatesrls.github.io/Picam
-```
+### 📋 Inventario
+- Scansione codici a barre con fotocamera
+- Ricerca articoli per codice, barcode o descrizione
+- Modalità scansione veloce (quantità automatica = 1)
+- Cronologia ultime scansioni
+- Export in formato INVENMAG.xlsx
 
-### Aggiornamento Cache (se necessario)
-```
-https://techmatesrls.github.io/Picam?v=11
-```
+### 🛒 Ordini Clienti
+- Ricerca clienti per codice, ragione sociale o P.IVA
+- Aggiunta articoli con quantità e prezzi
+- Calcolo automatico totali
+- Export in formato pipe-delimited per import gestionale
 
----
+### 🏭 Ordini Fornitori
+- Gestione completa ordini a fornitori
+- Interfaccia dedicata con tema viola
+- Stesso flusso operativo degli ordini clienti
 
-## 📋 Moduli
+### ⚡ Performance
+- Supporto per **18.000+ articoli**
+- Database locale con **IndexedDB**
+- Ricerca indicizzata ultra-veloce
+- Funzionamento **100% offline**
 
-### 📦 Inventario
-- Scansione articoli tramite barcode
-- Ricerca per codice o descrizione
-- Visualizzazione giacenza per deposito
-- Modifica/elimina movimenti in coda
-- Storico ultime 5 scansioni
-- Scansione veloce (quantità automatica = 1)
-
-**Formati di export:**
-| Formato | Descrizione |
-|---------|-------------|
-| `movint.txt` | Formato semplice `codice;quantità` per excelin.exe |
-| `INVENMAG.xlsx` | Formato nativo Picam (9 campi) |
-| `Report PDF` | Riepilogo per locazione con totali |
-
-### 🛒 Ordini
-- Selezione cliente da anagrafica
-- Aggiunta articoli tramite scansione o ricerca
-- Gestione quantità e prezzi
-- Numerazione automatica ordini
-- Export su Google Drive
+### 🎨 Design
+- Interfaccia **3D grigio professionale**
+- Ottimizzata per visibilità in luce
+- Pulsanti con effetto rialzato
+- Responsive per mobile e tablet
 
 ---
 
-## 📁 File Richiesti su Google Drive
+## 🚀 Demo
 
-Nella cartella configurata devono essere presenti questi file Excel:
+**URL:** [https://techmatesrls.github.io/Picam](https://techmatesrls.github.io/Picam)
 
-| File | Descrizione | Modulo |
-|------|-------------|--------|
-| `articoli.xlsx` | Anagrafica articoli | Inventario, Ordini |
-| `codbar.xlsx` | Codici a barre | Inventario, Ordini |
-| `artdep.xlsx` | Giacenze deposito | Inventario |
-| `clicom.xlsx` | Anagrafica clienti | Ordini |
-
-> **Nota:** I file vengono generati da **PicamExporter** (utility Windows inclusa nella documentazione)
+> ⚠️ L'accesso richiede un account Google autorizzato come utente di test.
 
 ---
 
-## 📱 Installazione PWA
+## 📱 Installazione
 
 ### Android (Chrome)
-1. Aprire l'URL in Chrome
-2. Toccare il menu (⋮) → **Installa app**
-3. Confermare l'installazione
-4. L'icona apparirà nella home
+1. Apri Chrome e vai all'URL dell'app
+2. Tocca il menu (⋮) → **"Installa app"**
+3. Conferma l'installazione
+4. L'icona Picam apparirà nella home screen
 
-### iOS (Safari)
-1. Aprire l'URL in Safari
-2. Toccare **Condividi** → **Aggiungi a Home**
-3. Confermare il nome e toccare **Aggiungi**
-
-### Desktop (Chrome/Edge)
-1. Aprire l'URL
-2. Cliccare sull'icona di installazione nella barra indirizzi
-3. Confermare l'installazione
+### iPhone/iPad (Safari)
+1. Apri Safari e vai all'URL dell'app
+2. Tocca l'icona **Condividi** (quadrato con freccia)
+3. Seleziona **"Aggiungi a Home"**
+4. Conferma con "Aggiungi"
 
 ---
 
-## ⚙️ Configurazione Iniziale
+## ⚙️ Configurazione
 
-1. **Login Google**: Toccare "Accedi con Google" e autorizzare l'accesso a Drive
-2. **Impostazioni**: Configurare:
-   - 📁 Percorso cartella Google Drive (es. `archivi/Ordini`)
-   - 🏭 Codice deposito (es. `001`)
-3. **Carica dati**: Toccare il pulsante per caricare le anagrafiche da Drive
+### Prerequisiti Google Cloud
 
----
+1. Accedi a [Google Cloud Console](https://console.cloud.google.com)
+2. Crea un progetto o seleziona quello esistente
+3. Abilita **Google Drive API**
+4. Configura la **schermata di consenso OAuth**
+5. Crea **credenziali OAuth 2.0** (Applicazione Web)
+6. Aggiungi gli utenti autorizzati in **"Utenti di test"**
 
-## 🔧 Stack Tecnologico
+### File Excel richiesti su Google Drive
 
-| Componente | Tecnologia |
-|------------|------------|
-| Frontend | HTML5 + CSS3 + JavaScript ES6+ |
-| Excel I/O | SheetJS 0.18.5 |
-| Scanner | html5-qrcode 2.3.8 |
-| PDF | jsPDF 2.5.1 |
-| Auth | Google Identity Services |
-| Storage | Google Drive API v3 |
-| Offline | Service Worker (Cache v11) |
+Nella cartella configurata (es: `archivi/Ordini`) devono essere presenti:
 
----
-
-## 📊 Tracciato INVENMAG.xlsx
-
-Il file di export inventario nel formato nativo Picam contiene:
-
-| Campo | Descrizione | Valore |
-|-------|-------------|--------|
-| `ima_car_del` | Carattere cancellazione | (vuoto) |
-| `ima_cod_ute` | Codice utente | (vuoto) |
-| `ima_dat_reg` | Data registrazione | Data sistema |
-| `ima_cod_dep` | Codice deposito | Da configurazione |
-| `ima_cod_art` | Codice articolo | Codice scansionato |
-| `ima_num_lot` | Numero lotto | (vuoto) |
-| `ima_qta` | Quantità | Quantità inserita |
-| `ima_not` | Note | (vuoto) |
-| `ima_filler` | Filler | (vuoto) |
+| File | Descrizione |
+|------|-------------|
+| `articoli.xlsx` | Anagrafica articoli |
+| `codbar.xlsx` | Codici a barre |
+| `artdep.xlsx` | Giacenze per deposito |
+| `clicom.xlsx` | Anagrafica clienti |
+| `forcom.xlsx` | Anagrafica fornitori (opzionale) |
 
 ---
 
-## 🛠️ Utility Correlate
+## 📁 Struttura File
 
-### PicamExporter (Windows)
-
-Utility desktop per:
-- **Export** anagrafiche da Picam → Google Drive
-- **Import** inventario da Google Drive → Picam
-
-Scaricabile dalla [documentazione tecnica](./docs/).
-
----
-
-## 🔐 Credenziali OAuth
-
-L'app utilizza OAuth 2.0 per l'accesso a Google Drive:
-
-- **Progetto**: Picam Inventario
-- **Scope**: `https://www.googleapis.com/auth/drive`
-- **Modalità**: Test (max 100 utenti)
-
-> Per aggiungere utenti: Google Cloud Console → API e servizi → Schermata consenso OAuth → Utenti di test
+```
+Picam/
+├── index.html          # Pagina principale
+├── styles.css          # Stili CSS (design 3D grigio)
+├── db.js               # Modulo database IndexedDB
+├── app.js              # Logica applicazione
+├── sw.js               # Service Worker per cache
+├── manifest.json       # Configurazione PWA
+├── icon-192.png        # Icona 192x192
+├── icon-512.png        # Icona 512x512
+└── README.md           # Questo file
+```
 
 ---
 
-## 📝 Changelog
+## 🔄 Sincronizzazione
 
-### v2.2 (Marzo 2026)
-- ✨ Nuovo export INVENMAG.xlsx formato nativo Picam
-- 🔧 Miglioramenti UI pulsanti coda inventario
+### File generati - Inventario
+- `INVENMAG.xlsx` - Movimenti inventario
 
-### v2.1 (Marzo 2026)
-- ✨ Modifica/elimina movimenti singoli
-- ✨ Storico ultime 5 scansioni
-- ✨ Report PDF inventario e ordini
-- ✨ Scansione veloce
-- ✨ Feedback sonoro e vibrazione
+### File generati - Ordini Clienti
+- `ordini-anagrafiche` - Anagrafica clienti
+- `ordini-testate` - Testata ordini
+- `ordini-dettagli` - Righe ordini
 
-### v2.0 (Marzo 2026)
-- 🎉 Rilascio iniziale
-- 📦 Modulo Inventario
-- 🛒 Modulo Ordini
-- ☁️ Integrazione Google Drive
+### File generati - Ordini Fornitori
+- `ordfornitori-anagrafica` - Anagrafica fornitori
+- `ordfornitori-testate` - Testata ordini
+- `ordfornitori-dettagli` - Righe ordini
 
 ---
 
-## 🆘 Supporto
+## 🛠️ Tecnologie
 
-Per problemi o richieste:
-- 📧 Email: orlando@graziosi.eu
-- 🏢 Techmatesrls
+- **HTML5 / CSS3 / JavaScript** (ES6+)
+- **IndexedDB** per storage locale
+- **Google Drive API** per sincronizzazione
+- **Google Identity Services** per autenticazione OAuth2
+- **SheetJS (xlsx)** per lettura/scrittura Excel
+- **html5-qrcode** per scansione barcode
+- **jsPDF** per generazione report PDF
+- **Service Worker** per funzionamento offline
+
+---
+
+## 🔧 Sviluppo
+
+### Aggiornare la cache
+
+Dopo ogni modifica, incrementare la versione cache in `sw.js`:
+
+```javascript
+const CACHE_NAME = 'picam-cache-v14'; // incrementare il numero
+```
+
+### Forzare refresh sul client
+
+Aggiungere un parametro query string all'URL:
+
+```
+https://techmatesrls.github.io/Picam?v=14
+```
+
+---
+
+## 📊 Compatibilità
+
+| Browser | Versione Minima | Note |
+|---------|-----------------|------|
+| Chrome (Android) | 80+ | ✅ Consigliato |
+| Safari (iOS) | 12+ | ✅ Supportato |
+| Firefox | 75+ | ⚠️ Limitazioni scanner |
+| Edge | 80+ | ✅ Supportato |
+
+---
+
+## 🐛 Risoluzione Problemi
+
+### L'app non si aggiorna
+```
+Soluzione: Aggiungere ?v=XX all'URL per forzare il refresh
+```
+
+### Errore autenticazione Google
+```
+- Verificare che l'account sia negli "Utenti di test"
+- Effettuare logout e nuovo login
+```
+
+### Scanner non funziona
+```
+- Verificare permessi fotocamera
+- Usare Chrome (altri browser potrebbero non supportare)
+- Verificare connessione HTTPS
+```
+
+### Cartella non trovata
+```
+- Verificare il percorso nelle impostazioni
+- Verificare che la cartella esista su Drive
+- Verificare i permessi dell'account
+```
 
 ---
 
 ## 📄 Licenza
 
-Proprietario - © 2026 Techmatesrls
+Software proprietario - Tutti i diritti riservati.
+
+---
+
+## 👨‍💻 Autore
+
+**Techmatesrls**
+
+📧 orlando@graziosi.eu
+
+---
+
+## 📝 Changelog
+
+### v3.0 (Marzo 2026)
+- 🎨 Nuovo design 3D grigio professionale
+- ⚡ IndexedDB per supporto grandi database (100k+ articoli)
+- 🔍 Ricerca indicizzata ultra-veloce
+- 📱 Ottimizzazione visibilità in luce
+- 🔄 Cache v13
+
+### v2.3 (Marzo 2026)
+- Aggiunta gestione ordini fornitori
+- Miglioramenti scanner barcode
+- Fix upload Google Drive
+
+### v2.0 (Febbraio 2026)
+- Aggiunta gestione ordini clienti
+- Report PDF
+- Modalità scansione veloce
+
+### v1.0 (Gennaio 2026)
+- Release iniziale
+- Modulo inventario base
+- Sincronizzazione Google Drive
