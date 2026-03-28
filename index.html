@@ -3,146 +3,154 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="theme-color" content="#37474F">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    <meta name="theme-color" content="#1a1a2e">
+    <meta name="description" content="Picam - Gestione Inventario e Ordini">
     
-    <title>Picam</title>
+    <title>Picam v3.0</title>
     
     <link rel="manifest" href="manifest.json">
-    <link rel="icon" type="image/png" href="icon-192.png">
+    <link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
     <link rel="apple-touch-icon" href="icon-192.png">
     
-    <!-- Google Fonts -->
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="styles.css">
+    
+    <!-- SheetJS per Excel -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    
+    <!-- html5-qrcode per scanner -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html5-qrcode/2.3.8/html5-qrcode.min.js"></script>
+    
+    <!-- jsPDF per report -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     
     <!-- Google Identity Services -->
     <script src="https://accounts.google.com/gsi/client" async defer></script>
-    
-    <!-- Google API Client -->
-    <script src="https://apis.google.com/js/api.js" async defer></script>
-    
-    <!-- SheetJS per lettura Excel -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-    
-    <!-- Html5-QRCode per scanner barcode -->
-    <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
-    
-    <!-- jsPDF per generazione PDF -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
-    
-    <link rel="stylesheet" href="styles.css">
 </head>
 <body>
-    <!-- ============================================ -->
-    <!-- SCHERMATA SETUP / LOGIN                      -->
-    <!-- ============================================ -->
+    <!-- ==========================================
+         TOAST CONTAINER
+         ========================================== -->
+    <div id="toast-container"></div>
+
+    <!-- ==========================================
+         SCREEN: SETUP / LOGIN
+         ========================================== -->
     <div id="screen-setup" class="screen active">
         <div class="setup-container">
-            <div class="logo">
+            <div class="logo-section">
                 <div class="logo-icon">📦</div>
-                <h1>Picam</h1>
+                <h1 class="logo-title">PICAM</h1>
+                <p class="logo-subtitle">Inventario & Ordini v3.0</p>
             </div>
-            
-            <div class="setup-card">
-                <h2>Configurazione</h2>
-                
-                <!-- Step 1: Login Google -->
-                <div id="step-login" class="setup-step">
-                    <div class="step-header">
-                        <span class="step-number">1</span>
-                        <span class="step-title">Accedi con Google</span>
-                    </div>
-                    <p class="step-desc">Per accedere ai file su Google Drive</p>
-                    <button id="btn-google-login" class="btn-google">
-                        <svg viewBox="0 0 24 24" width="20" height="20">
-                            <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
-                            <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
-                            <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/>
-                            <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
-                        </svg>
-                        Accedi con Google
-                    </button>
-                    <div id="user-info" class="user-info hidden">
-                        <span id="user-email"></span>
-                        <button id="btn-logout" class="btn-link">Esci</button>
-                    </div>
+
+            <!-- Step 1: Login Google -->
+            <div class="setup-step" id="step-login">
+                <div class="step-header">
+                    <span class="step-number">1</span>
+                    <span class="step-title">Accesso Google</span>
                 </div>
-                
-                <!-- Step 2: Seleziona cartella -->
-                <div id="step-folder" class="setup-step disabled">
-                    <div class="step-header">
-                        <span class="step-number">2</span>
-                        <span class="step-title">Cartella Google Drive</span>
-                    </div>
-                    <p class="step-desc">Dove si trovano i file xlsx</p>
-                    <div class="folder-input-group">
-                        <input type="text" id="input-folder" placeholder="Es: archivi" autocomplete="off">
-                        <button id="btn-browse-folder" class="btn-icon" title="Sfoglia">📁</button>
-                    </div>
-                </div>
-                
-                <!-- Step 3: Deposito -->
-                <div id="step-deposito" class="setup-step disabled">
-                    <div class="step-header">
-                        <span class="step-number">3</span>
-                        <span class="step-title">Codice Deposito</span>
-                    </div>
-                    <input type="text" id="input-deposito" placeholder="01" maxlength="3" autocomplete="off">
-                </div>
-                
-                <!-- Pulsante carica -->
-                <button id="btn-load-data" class="btn-primary" disabled>
-                    <span class="btn-icon">📥</span>
-                    Carica Anagrafiche
+                <p style="font-size: 14px; color: var(--text-secondary); margin-bottom: 16px;">
+                    Accedi con il tuo account Google per sincronizzare i dati con Drive.
+                </p>
+                <button class="btn-primary" id="btn-login" onclick="APP.login()">
+                    <span>🔐</span>
+                    <span>Accedi con Google</span>
                 </button>
-                
-                <div id="setup-status" class="status-message"></div>
+                <div id="login-status" class="status-message"></div>
             </div>
-            
-            <div class="setup-footer">
-                <p>Versione 2.1.0 - Techmatesrls</p>
+
+            <!-- Step 2: Configurazione -->
+            <div class="setup-step disabled" id="step-config">
+                <div class="step-header">
+                    <span class="step-number">2</span>
+                    <span class="step-title">Configurazione</span>
+                </div>
+                <div style="display: flex; flex-direction: column; gap: 12px;">
+                    <div class="ordine-field">
+                        <label>Cartella Google Drive</label>
+                        <input type="text" id="config-folder" placeholder="es: archivi/Ordini" value="archivi/Ordini">
+                    </div>
+                    <div class="ordine-field">
+                        <label>Codice Deposito</label>
+                        <input type="text" id="config-deposito" placeholder="es: 001" value="001">
+                    </div>
+                </div>
+            </div>
+
+            <!-- Step 3: Caricamento Dati -->
+            <div class="setup-step disabled" id="step-load">
+                <div class="step-header">
+                    <span class="step-number">3</span>
+                    <span class="step-title">Caricamento Dati</span>
+                </div>
+                <p style="font-size: 14px; color: var(--text-secondary); margin-bottom: 16px;">
+                    Carica i dati da Google Drive per iniziare.
+                </p>
+                <button class="btn-primary" id="btn-load-data" onclick="APP.loadAllData()">
+                    <span>☁️</span>
+                    <span>Carica Dati da Drive</span>
+                </button>
+                <div class="progress-container hidden" id="load-progress">
+                    <div class="progress-bar">
+                        <div class="progress-fill" id="progress-fill" style="width: 0%"></div>
+                    </div>
+                    <p class="progress-text" id="progress-text">Caricamento...</p>
+                </div>
+                <div id="load-status" class="status-message"></div>
             </div>
         </div>
     </div>
 
-    <!-- ============================================ -->
-    <!-- SCHERMATA MENU PRINCIPALE                    -->
-    <!-- ============================================ -->
+    <!-- ==========================================
+         SCREEN: MENU PRINCIPALE
+         ========================================== -->
     <div id="screen-menu" class="screen">
+        <header class="main-header">
+            <div class="header-left">
+                <span class="header-title">PICAM</span>
+            </div>
+            <div class="header-right">
+                <button class="btn-icon-only" onclick="APP.refreshData()" title="Aggiorna dati">🔄</button>
+                <button class="btn-icon-only" onclick="APP.openSettings()" title="Impostazioni">⚙️</button>
+            </div>
+        </header>
+
         <div class="menu-container">
-            <div class="menu-header">
-                <div class="logo-small">
-                    <span class="logo-icon">📦</span>
-                    <span>Picam</span>
-                </div>
-                <button id="btn-menu-settings" class="btn-icon-only" title="Impostazioni">⚙️</button>
-            </div>
-            
-            <div class="menu-user-info">
-                <span id="menu-user-email"></span>
-                <span id="menu-deposito" class="badge">DEP: 01</span>
-            </div>
-            
             <div class="menu-grid">
-                <button id="btn-open-inventario" class="menu-card">
+                <!-- Inventario -->
+                <div class="menu-card" onclick="APP.openInventario()">
                     <div class="menu-card-icon">📋</div>
-                    <div class="menu-card-title">Inventario</div>
-                    <div class="menu-card-desc">Gestione inventario magazzino</div>
-                    <div class="menu-card-badge" id="menu-badge-inv"></div>
-                </button>
-                
-                <button id="btn-open-ordini" class="menu-card">
+                    <div class="menu-card-content">
+                        <div class="menu-card-title">Inventario</div>
+                        <div class="menu-card-desc">Gestione inventario magazzino</div>
+                    </div>
+                    <span class="menu-card-badge" id="badge-inventario">0</span>
+                </div>
+
+                <!-- Ordini Clienti -->
+                <div class="menu-card" onclick="APP.openOrdiniClienti()">
                     <div class="menu-card-icon">🛒</div>
-                    <div class="menu-card-title">Ordini</div>
-                    <div class="menu-card-desc">Creazione ordini clienti</div>
-                    <div class="menu-card-badge" id="menu-badge-ord"></div>
-                </button>
+                    <div class="menu-card-content">
+                        <div class="menu-card-title">Ordini Clienti</div>
+                        <div class="menu-card-desc">Creazione ordini clienti</div>
+                    </div>
+                    <span class="menu-card-badge" id="badge-ordini-clienti">0</span>
+                </div>
+
+                <!-- Ordini Fornitori -->
+                <div class="menu-card fornitori" onclick="APP.openOrdiniFornitori()">
+                    <div class="menu-card-icon">🏭</div>
+                    <div class="menu-card-content">
+                        <div class="menu-card-title">Ordini Fornitori</div>
+                        <div class="menu-card-desc">Creazione ordini fornitori</div>
+                    </div>
+                    <span class="menu-card-badge" id="badge-ordini-fornitori">0</span>
+                </div>
             </div>
-            
+
+            <!-- Statistiche -->
             <div class="menu-stats">
                 <div class="stat-item">
                     <span class="stat-value" id="stat-articoli">0</span>
@@ -152,624 +160,380 @@
                     <span class="stat-value" id="stat-clienti">0</span>
                     <span class="stat-label">Clienti</span>
                 </div>
+                <div class="stat-item">
+                    <span class="stat-value" id="stat-fornitori">0</span>
+                    <span class="stat-label">Fornitori</span>
+                </div>
             </div>
         </div>
     </div>
 
-    <!-- ============================================ -->
-    <!-- SCHERMATA INVENTARIO                         -->
-    <!-- ============================================ -->
+    <!-- ==========================================
+         SCREEN: INVENTARIO
+         ========================================== -->
     <div id="screen-inventario" class="screen">
-        <!-- Header -->
         <header class="main-header">
             <div class="header-left">
-                <button id="btn-inv-back" class="btn-back">←</button>
+                <button class="btn-back" onclick="APP.goToMenu()">←</button>
                 <span class="header-title">Inventario</span>
             </div>
             <div class="header-right">
-                <span id="header-deposito-inv" class="badge">DEP: 01</span>
-            </div>
-        </header>
-        
-        <!-- Navigazione Tab -->
-        <nav class="tab-nav">
-            <button class="tab-btn active" data-tab="consulta">
-                <span class="tab-icon">🔍</span>
-                <span class="tab-label">Consulta</span>
-            </button>
-            <button class="tab-btn" data-tab="inventario">
-                <span class="tab-icon">📋</span>
-                <span class="tab-label">Inventario</span>
-            </button>
-            <button class="tab-btn" data-tab="coda">
-                <span class="tab-icon">📤</span>
-                <span class="tab-label">Coda</span>
-                <span id="badge-coda" class="tab-badge hidden">0</span>
-            </button>
-        </nav>
-        
-        <!-- TAB CONSULTA -->
-        <div id="tab-consulta" class="tab-content active">
-            <div class="search-section">
-                <div class="search-bar">
-                    <span class="search-icon">🔍</span>
-                    <input type="text" id="search-input" placeholder="Cerca codice, descrizione, locazione...">
-                    <button id="btn-scan-search" class="btn-scan" title="Scansiona barcode">📷</button>
-                    <button id="btn-clear-search" class="btn-clear hidden" title="Cancella">✕</button>
-                </div>
-                
-                <div class="filter-row">
-                    <select id="filter-gruppo">
-                        <option value="">Tutti i gruppi</option>
-                    </select>
-                    <select id="filter-locazione">
-                        <option value="">Tutte le locazioni</option>
-                    </select>
-                </div>
-            </div>
-            
-            <div class="results-info">
-                <span id="results-count">0 articoli trovati</span>
-            </div>
-            
-            <div id="results-list" class="results-list"></div>
-            
-            <!-- Dettaglio articolo (overlay) -->
-            <div id="article-detail" class="detail-overlay hidden">
-                <div class="detail-card">
-                    <button id="btn-close-detail" class="btn-close">✕</button>
-                    
-                    <section class="detail-section">
-                        <h3>📋 Anagrafica</h3>
-                        <div class="detail-grid">
-                            <div class="detail-item">
-                                <span class="detail-label">Codice Articolo</span>
-                                <span id="det-codice" class="detail-value code"></span>
-                            </div>
-                            <div class="detail-item full">
-                                <span class="detail-label">Descrizione 1</span>
-                                <span id="det-des1" class="detail-value"></span>
-                            </div>
-                            <div class="detail-item full">
-                                <span class="detail-label">Descrizione 2</span>
-                                <span id="det-des2" class="detail-value"></span>
-                            </div>
-                            <div class="detail-item">
-                                <span class="detail-label">Codice a barre</span>
-                                <span id="det-barcode" class="detail-value code"></span>
-                            </div>
-                            <div class="detail-item">
-                                <span class="detail-label">Gruppo Merceologico</span>
-                                <span id="det-gruppo" class="detail-value"></span>
-                            </div>
-                            <div class="detail-item">
-                                <span class="detail-label">Unità di misura</span>
-                                <span id="det-um" class="detail-value"></span>
-                            </div>
-                        </div>
-                    </section>
-                    
-                    <section class="detail-section">
-                        <h3>💰 Prezzi</h3>
-                        <div class="detail-grid">
-                            <div class="detail-item">
-                                <span class="detail-label">Listino 1</span>
-                                <span id="det-lis1" class="detail-value price"></span>
-                            </div>
-                            <div class="detail-item">
-                                <span class="detail-label">Listino 2</span>
-                                <span id="det-lis2" class="detail-value price"></span>
-                            </div>
-                            <div class="detail-item">
-                                <span class="detail-label">Listino 3</span>
-                                <span id="det-lis3" class="detail-value price"></span>
-                            </div>
-                            <div class="detail-item">
-                                <span class="detail-label">Listino 4</span>
-                                <span id="det-lis4" class="detail-value price"></span>
-                            </div>
-                            <div class="detail-item">
-                                <span class="detail-label">Ultima vendita</span>
-                                <span id="det-ult-ven" class="detail-value"></span>
-                            </div>
-                            <div class="detail-item">
-                                <span class="detail-label">Prezzo ult. vendita</span>
-                                <span id="det-prz-ven" class="detail-value price"></span>
-                            </div>
-                            <div class="detail-item">
-                                <span class="detail-label">Ultimo acquisto</span>
-                                <span id="det-ult-acq" class="detail-value"></span>
-                            </div>
-                            <div class="detail-item">
-                                <span class="detail-label">Prezzo ult. acquisto</span>
-                                <span id="det-prz-acq" class="detail-value price"></span>
-                            </div>
-                        </div>
-                    </section>
-                    
-                    <section class="detail-section">
-                        <h3>📦 Esistenza</h3>
-                        <div class="detail-grid">
-                            <div class="detail-item highlight">
-                                <span class="detail-label">Esistenza Attuale</span>
-                                <span id="det-esistenza" class="detail-value big"></span>
-                            </div>
-                            <div class="detail-item">
-                                <span class="detail-label">Locazione Magazzino</span>
-                                <span id="det-locazione" class="detail-value code"></span>
-                            </div>
-                        </div>
-                    </section>
-                    
-                    <button id="btn-to-inventory" class="btn-primary">
-                        <span class="btn-icon">📋</span>
-                        Vai a Inventario
-                    </button>
-                </div>
-            </div>
-        </div>
-        
-        <!-- TAB INVENTARIO -->
-        <div id="tab-inventario" class="tab-content">
-            <div class="inventory-container">
-                <!-- Toggle Scansione Veloce -->
-                <div class="scan-mode-toggle">
-                    <label class="toggle-label">
-                        <input type="checkbox" id="toggle-fast-scan">
-                        <span class="toggle-slider"></span>
-                        <span class="toggle-text">⚡ Scansione veloce</span>
-                    </label>
-                </div>
-                
-                <div class="search-section compact">
-                    <div class="search-bar">
-                        <span class="search-icon">🔍</span>
-                        <input type="text" id="inv-search-input" placeholder="Cerca articolo...">
-                        <button id="btn-scan-inventory" class="btn-scan" title="Scansiona barcode">📷</button>
-                    </div>
-                </div>
-                
-                <div id="inv-article-info" class="inv-article-info empty">
-                    <p class="empty-message">Cerca o scansiona un articolo</p>
-                </div>
-                
-                <div id="inv-quantity-section" class="inv-quantity-section hidden">
-                    <label>Quantità rilevata</label>
-                    <div class="quantity-display">
-                        <span id="inv-quantity">0</span>
-                    </div>
-                    
-                    <div class="numpad">
-                        <button class="numpad-btn" data-num="1">1</button>
-                        <button class="numpad-btn" data-num="2">2</button>
-                        <button class="numpad-btn" data-num="3">3</button>
-                        <button class="numpad-btn" data-num="4">4</button>
-                        <button class="numpad-btn" data-num="5">5</button>
-                        <button class="numpad-btn" data-num="6">6</button>
-                        <button class="numpad-btn" data-num="7">7</button>
-                        <button class="numpad-btn" data-num="8">8</button>
-                        <button class="numpad-btn" data-num="9">9</button>
-                        <button class="numpad-btn clear" data-action="clear">C</button>
-                        <button class="numpad-btn" data-num="0">0</button>
-                        <button class="numpad-btn backspace" data-action="back">⌫</button>
-                    </div>
-                    
-                    <button id="btn-confirm-inventory" class="btn-confirm">
-                        <span class="btn-icon">✅</span>
-                        Conferma e Registra
-                    </button>
-                </div>
-                
-                <!-- Ultimi articoli inventariati -->
-                <div id="inv-history" class="inv-history">
-                    <div class="history-header">
-                        <h4>📜 Ultimi inseriti</h4>
-                    </div>
-                    <div id="inv-history-list" class="history-list"></div>
-                </div>
-            </div>
-        </div>
-        
-        <!-- TAB CODA -->
-        <div id="tab-coda" class="tab-content">
-            <div class="queue-container">
-                <div class="queue-header">
-                    <h2>Movimenti in coda</h2>
-                    <span id="queue-count" class="queue-count">0 movimenti</span>
-                </div>
-                
-                <!-- Riepilogo per locazione -->
-                <div id="queue-summary" class="queue-summary hidden">
-                    <h4>📊 Riepilogo</h4>
-                    <div id="queue-summary-content"></div>
-                </div>
-                
-                <div id="queue-list" class="queue-list">
-                    <p class="empty-message">Nessun movimento in coda</p>
-                </div>
-                
-                <div class="queue-actions">
-                    <div class="queue-actions-row">
-                        <button id="btn-sync" class="btn-primary" disabled>
-                            <span class="btn-icon">📤</span>
-                            movint.txt
-                        </button>
-                        <button id="btn-export-invenmag" class="btn-primary" disabled>
-                            <span class="btn-icon">📊</span>
-                            INVENMAG.xlsx
-                        </button>
-                    </div>
-                    <div class="queue-actions-row">
-                        <button id="btn-report-inv" class="btn-secondary" disabled>
-                            <span class="btn-icon">📄</span>
-                            Report PDF
-                        </button>
-                        <button id="btn-clear-queue" class="btn-danger" disabled>
-                            <span class="btn-icon">🗑️</span>
-                            Svuota
-                        </button>
-                    </div>
-                </div>
-                
-                <div id="sync-status" class="status-message"></div>
-            </div>
-        </div>
-    </div>
-
-    <!-- ============================================ -->
-    <!-- SCHERMATA ORDINI                             -->
-    <!-- ============================================ -->
-    <div id="screen-ordini" class="screen">
-        <!-- Header -->
-        <header class="main-header">
-            <div class="header-left">
-                <button id="btn-ord-back" class="btn-back">←</button>
-                <span class="header-title">Nuovo Ordine</span>
-            </div>
-            <div class="header-right">
-                <button id="btn-ord-list" class="btn-icon-only" title="Lista ordini">📋</button>
-            </div>
-        </header>
-        
-        <!-- Contenuto Ordine -->
-        <div class="ordine-container">
-            <!-- Sezione Testata -->
-            <section class="ordine-section">
-                <h3>📝 Testata Ordine</h3>
-                <div class="ordine-grid">
-                    <div class="ordine-field">
-                        <label>Data</label>
-                        <input type="text" id="ord-data" readonly>
-                    </div>
-                    <div class="ordine-field">
-                        <label>Registro</label>
-                        <input type="text" id="ord-registro" value="01" maxlength="2">
-                    </div>
-                    <div class="ordine-field">
-                        <label>N° Ordine</label>
-                        <input type="text" id="ord-numero" readonly>
-                    </div>
-                </div>
-            </section>
-            
-            <!-- Sezione Cliente -->
-            <section class="ordine-section">
-                <h3>👤 Cliente</h3>
-                <div class="search-bar">
-                    <span class="search-icon">🔍</span>
-                    <input type="text" id="ord-cliente-search" placeholder="Cerca cliente...">
-                    <button id="btn-scan-cliente" class="btn-scan" title="Scansiona">📷</button>
-                </div>
-                
-                <div id="ord-cliente-info" class="cliente-info empty">
-                    <p class="empty-message">Seleziona un cliente</p>
-                </div>
-                
-                <div id="ord-cliente-detail" class="cliente-detail hidden">
-                    <div class="cliente-header">
-                        <span class="cliente-codice" id="ord-cli-codice"></span>
-                        <span class="cliente-ragsoc" id="ord-cli-ragsoc"></span>
-                    </div>
-                    <div class="cliente-body">
-                        <p id="ord-cli-indirizzo"></p>
-                        <p id="ord-cli-citta"></p>
-                        <p id="ord-cli-piva"></p>
-                    </div>
-                    <div class="ordine-field inline">
-                        <label>Cod. Pagamento</label>
-                        <input type="text" id="ord-cod-pag" maxlength="4">
-                    </div>
-                </div>
-            </section>
-            
-            <!-- Sezione Articoli -->
-            <section class="ordine-section">
-                <h3>📦 Articoli</h3>
-                <!-- Toggle Scansione Veloce Ordini -->
-                <div class="scan-mode-toggle small">
-                    <label class="toggle-label">
-                        <input type="checkbox" id="toggle-fast-scan-ord">
-                        <span class="toggle-slider"></span>
-                        <span class="toggle-text">⚡ Veloce</span>
-                    </label>
-                </div>
-                <div class="search-bar">
-                    <span class="search-icon">🔍</span>
-                    <input type="text" id="ord-articolo-search" placeholder="Aggiungi articolo...">
-                    <button id="btn-scan-articolo" class="btn-scan" title="Scansiona">📷</button>
-                </div>
-                
-                <div id="ord-righe-list" class="righe-list">
-                    <p class="empty-message">Nessun articolo inserito</p>
-                </div>
-            </section>
-            
-            <!-- Sezione Totali -->
-            <section class="ordine-section totali">
-                <h3>💰 Totali</h3>
-                <div class="totali-grid">
-                    <div class="totale-row">
-                        <span>Netto merce</span>
-                        <span id="ord-tot-netto">€ 0,00</span>
-                    </div>
-                    <div class="totale-row">
-                        <span>IVA</span>
-                        <span id="ord-tot-iva">€ 0,00</span>
-                    </div>
-                    <div class="totale-row total">
-                        <span>Totale Ordine</span>
-                        <span id="ord-tot-ordine">€ 0,00</span>
-                    </div>
-                    <div class="totale-row total">
-                        <span>Netto a Pagare</span>
-                        <span id="ord-tot-pagare">€ 0,00</span>
-                    </div>
-                </div>
-            </section>
-            
-            <!-- Pulsante Conferma -->
-            <button id="btn-conferma-ordine" class="btn-confirm-order" disabled>
-                <span class="btn-icon">✅</span>
-                Conferma Ordine
-            </button>
-            
-            <div id="ordine-status" class="status-message"></div>
-        </div>
-    </div>
-
-    <!-- ============================================ -->
-    <!-- MODAL AGGIUNGI RIGA ORDINE                   -->
-    <!-- ============================================ -->
-    <div id="modal-add-riga" class="modal-overlay hidden">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h3>Aggiungi Articolo</h3>
-                <button id="btn-close-add-riga" class="btn-close">✕</button>
-            </div>
-            <div class="modal-body">
-                <div class="riga-articolo-info">
-                    <div class="riga-codice" id="riga-art-codice"></div>
-                    <div class="riga-descrizione" id="riga-art-desc"></div>
-                    <div class="riga-meta">
-                        <span>📦 Esist: <strong id="riga-art-esist"></strong></span>
-                        <span>📍 <span id="riga-art-loc"></span></span>
-                    </div>
-                </div>
-                
-                <div class="riga-inputs">
-                    <div class="riga-field">
-                        <label>Quantità</label>
-                        <input type="number" id="riga-qta" value="1" min="1">
-                    </div>
-                    <div class="riga-field">
-                        <label>Prezzo Unitario</label>
-                        <input type="number" id="riga-prezzo" step="0.01" value="0">
-                    </div>
-                    <div class="riga-field">
-                        <label>Sconto %</label>
-                        <input type="number" id="riga-sconto" value="0" min="0" max="100">
-                    </div>
-                </div>
-                
-                <div class="riga-totale">
-                    <span>Totale riga:</span>
-                    <span id="riga-totale-value">€ 0,00</span>
-                </div>
-                
-                <button id="btn-conferma-riga" class="btn-primary">
-                    <span class="btn-icon">➕</span>
-                    Aggiungi al Ordine
+                <button class="btn-icon-only" onclick="APP.openQueueModal('inventario')" title="Coda">
+                    📋 <span id="header-queue-count-inv" style="font-size: 12px;"></span>
                 </button>
             </div>
-        </div>
-    </div>
+        </header>
 
-    <!-- ============================================ -->
-    <!-- MODAL MODIFICA MOVIMENTO INVENTARIO          -->
-    <!-- ============================================ -->
-    <div id="modal-edit-mov" class="modal-overlay hidden">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h3>✏️ Modifica Movimento</h3>
-                <button id="btn-close-edit-mov" class="btn-close">✕</button>
+        <div style="padding: 16px;">
+            <!-- Toggle Scansione Veloce -->
+            <div class="scan-mode-toggle">
+                <label class="toggle-label">
+                    <input type="checkbox" id="fast-scan-inv" onchange="APP.toggleFastScan('inv')">
+                    <span class="toggle-slider"></span>
+                </label>
+                <span class="toggle-text">⚡ Scansione veloce (qta=1)</span>
             </div>
-            <div class="modal-body">
-                <div class="edit-mov-info">
-                    <div class="edit-mov-codice" id="edit-mov-codice"></div>
-                    <div class="edit-mov-desc" id="edit-mov-desc"></div>
-                    <div class="edit-mov-loc" id="edit-mov-loc"></div>
+
+            <!-- Barra Ricerca -->
+            <div class="search-bar">
+                <span class="search-icon">🔍</span>
+                <input type="text" id="search-inv" placeholder="Cerca articolo..." oninput="APP.debounceSearch('inv')">
+                <button class="btn-scan" onclick="APP.startScan('inv')">📷</button>
+            </div>
+
+            <!-- Risultati Ricerca -->
+            <div class="results-list mt-16" id="results-inv"></div>
+
+            <!-- Cronologia -->
+            <div class="card mt-16" id="history-inv-card">
+                <div class="card-header">
+                    <span class="card-title">📜 Ultime scansioni</span>
                 </div>
-                
-                <div class="edit-mov-field">
-                    <label>Nuova Quantità</label>
-                    <input type="number" id="edit-mov-qta" min="0">
-                </div>
-                
-                <div class="edit-mov-actions">
-                    <button id="btn-save-edit-mov" class="btn-primary">
-                        <span class="btn-icon">💾</span>
-                        Salva
-                    </button>
-                    <button id="btn-delete-mov" class="btn-danger">
-                        <span class="btn-icon">🗑️</span>
-                        Elimina
-                    </button>
-                </div>
+                <div class="history-list" id="history-inv"></div>
             </div>
         </div>
     </div>
 
-    <!-- ============================================ -->
-    <!-- MODAL LISTA CLIENTI                          -->
-    <!-- ============================================ -->
-    <div id="modal-clienti" class="modal-overlay hidden">
-        <div class="modal-content modal-large">
-            <div class="modal-header">
-                <h3>Seleziona Cliente</h3>
-                <button id="btn-close-clienti" class="btn-close">✕</button>
+    <!-- ==========================================
+         SCREEN: ORDINI CLIENTI
+         ========================================== -->
+    <div id="screen-ordini-clienti" class="screen">
+        <header class="main-header">
+            <div class="header-left">
+                <button class="btn-back" onclick="APP.goToMenu()">←</button>
+                <span class="header-title">Ordini Clienti</span>
             </div>
-            <div class="modal-body">
-                <div id="clienti-list" class="clienti-list"></div>
+            <div class="header-right">
+                <button class="btn-icon-only" onclick="APP.openQueueModal('ordiniClienti')" title="Coda ordini">
+                    📋 <span id="header-queue-count-ord-cli" style="font-size: 12px;"></span>
+                </button>
             </div>
-        </div>
-    </div>
+        </header>
 
-    <!-- ============================================ -->
-    <!-- MODAL LISTA ARTICOLI ORDINE                  -->
-    <!-- ============================================ -->
-    <div id="modal-articoli" class="modal-overlay hidden">
-        <div class="modal-content modal-large">
-            <div class="modal-header">
-                <h3>Seleziona Articolo</h3>
-                <button id="btn-close-articoli" class="btn-close">✕</button>
-            </div>
-            <div class="modal-body">
-                <div id="articoli-ord-list" class="articoli-list"></div>
-            </div>
-        </div>
-    </div>
-
-    <!-- ============================================ -->
-    <!-- MODAL LISTA ORDINI SALVATI                   -->
-    <!-- ============================================ -->
-    <div id="modal-ordini-list" class="modal-overlay hidden">
-        <div class="modal-content modal-large">
-            <div class="modal-header">
-                <h3>📋 Ordini in Coda</h3>
-                <button id="btn-close-ordini-list" class="btn-close">✕</button>
-            </div>
-            <div class="modal-body">
-                <div id="ordini-queue-list" class="ordini-list"></div>
-                <div class="queue-actions" style="margin-top: 16px;">
-                    <button id="btn-sync-ordini" class="btn-primary" disabled>
-                        <span class="btn-icon">📤</span>
-                        Sincronizza su Drive
-                    </button>
-                    <div class="queue-actions-row">
-                        <button id="btn-report-ordini" class="btn-secondary" disabled>
-                            <span class="btn-icon">📄</span>
-                            Report PDF
-                        </button>
-                        <button id="btn-clear-ordini" class="btn-danger" disabled>
-                            <span class="btn-icon">🗑️</span>
-                            Svuota
-                        </button>
+        <div class="ordine-container">
+            <!-- Dati Ordine -->
+            <div class="ordine-section">
+                <h3>📄 Dati Ordine</h3>
+                <div class="ordine-grid">
+                    <div class="ordine-field">
+                        <label>Registro</label>
+                        <input type="text" id="ord-cli-registro" value="01" maxlength="2">
+                    </div>
+                    <div class="ordine-field">
+                        <label>Numero</label>
+                        <input type="number" id="ord-cli-numero" value="1">
+                    </div>
+                    <div class="ordine-field">
+                        <label>Data</label>
+                        <input type="text" id="ord-cli-data" readonly>
                     </div>
                 </div>
-                <div id="ordini-sync-status" class="status-message"></div>
             </div>
+
+            <!-- Cliente -->
+            <div class="ordine-section">
+                <h3>👤 Cliente</h3>
+                <div class="search-bar mb-12">
+                    <span class="search-icon">🔍</span>
+                    <input type="text" id="search-cliente" placeholder="Cerca cliente..." oninput="APP.debounceSearch('cliente')">
+                </div>
+                <div id="results-cliente" class="results-list"></div>
+                <div id="selected-cliente" class="cliente-info empty">
+                    <span>Nessun cliente selezionato</span>
+                </div>
+            </div>
+
+            <!-- Articoli -->
+            <div class="ordine-section">
+                <h3>📦 Articoli</h3>
+                <div class="scan-mode-toggle">
+                    <label class="toggle-label">
+                        <input type="checkbox" id="fast-scan-ord-cli" onchange="APP.toggleFastScan('ordCli')">
+                        <span class="toggle-slider"></span>
+                    </label>
+                    <span class="toggle-text">⚡ Scansione veloce (qta=1)</span>
+                </div>
+                <div class="search-bar">
+                    <span class="search-icon">🔍</span>
+                    <input type="text" id="search-art-ord-cli" placeholder="Cerca articolo..." oninput="APP.debounceSearch('artOrdCli')">
+                    <button class="btn-scan" onclick="APP.startScan('ordCli')">📷</button>
+                </div>
+                <div id="results-art-ord-cli" class="results-list mt-12"></div>
+                <div class="righe-list" id="righe-ord-cli"></div>
+            </div>
+
+            <!-- Totali -->
+            <div class="ordine-section totali" id="totali-ord-cli">
+                <div class="totali-grid">
+                    <div class="totale-row">
+                        <span>Totale articoli</span>
+                        <span id="tot-cli-articoli">0</span>
+                    </div>
+                    <div class="totale-row">
+                        <span>Totale quantità</span>
+                        <span id="tot-cli-qta">0</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Conferma -->
+            <button class="btn-confirm-order" id="btn-conferma-ord-cli" onclick="APP.confermaOrdineCliente()" disabled>
+                ✅ Conferma Ordine
+            </button>
         </div>
     </div>
 
-    <!-- ============================================ -->
-    <!-- MODAL MODIFICA ORDINE                        -->
-    <!-- ============================================ -->
-    <div id="modal-edit-ordine" class="modal-overlay hidden">
-        <div class="modal-content modal-large">
-            <div class="modal-header">
-                <h3>✏️ Modifica Ordine #<span id="edit-ord-num"></span></h3>
-                <button id="btn-close-edit-ordine" class="btn-close">✕</button>
+    <!-- ==========================================
+         SCREEN: ORDINI FORNITORI
+         ========================================== -->
+    <div id="screen-ordini-fornitori" class="screen">
+        <header class="main-header header-fornitori">
+            <div class="header-left">
+                <button class="btn-back" onclick="APP.goToMenu()">←</button>
+                <span class="header-title">Ordini Fornitori</span>
             </div>
-            <div class="modal-body">
-                <div class="edit-ord-cliente" id="edit-ord-cliente"></div>
-                <div id="edit-ord-righe" class="righe-list"></div>
-                <div class="edit-ord-totale">
-                    <span>Totale:</span>
-                    <span id="edit-ord-totale-val"></span>
-                </div>
-                <div class="edit-ord-actions">
-                    <button id="btn-save-edit-ordine" class="btn-primary">
-                        <span class="btn-icon">💾</span>
-                        Salva Modifiche
-                    </button>
-                    <button id="btn-delete-ordine" class="btn-danger">
-                        <span class="btn-icon">🗑️</span>
-                        Elimina Ordine
-                    </button>
+            <div class="header-right">
+                <button class="btn-icon-only" onclick="APP.openQueueModal('ordiniFornitori')" title="Coda ordini">
+                    📋 <span id="header-queue-count-ord-for" style="font-size: 12px;"></span>
+                </button>
+            </div>
+        </header>
+
+        <div class="ordine-container">
+            <!-- Dati Ordine -->
+            <div class="ordine-section">
+                <h3>📄 Dati Ordine</h3>
+                <div class="ordine-grid">
+                    <div class="ordine-field">
+                        <label>Registro</label>
+                        <input type="text" id="ord-for-registro" value="01" maxlength="2">
+                    </div>
+                    <div class="ordine-field">
+                        <label>Numero</label>
+                        <input type="number" id="ord-for-numero" value="1">
+                    </div>
+                    <div class="ordine-field">
+                        <label>Data</label>
+                        <input type="text" id="ord-for-data" readonly>
+                    </div>
                 </div>
             </div>
+
+            <!-- Fornitore -->
+            <div class="ordine-section">
+                <h3>🏭 Fornitore</h3>
+                <div class="search-bar mb-12">
+                    <span class="search-icon">🔍</span>
+                    <input type="text" id="search-fornitore" placeholder="Cerca fornitore..." oninput="APP.debounceSearch('fornitore')">
+                </div>
+                <div id="results-fornitore" class="results-list"></div>
+                <div id="selected-fornitore" class="cliente-info empty">
+                    <span>Nessun fornitore selezionato</span>
+                </div>
+            </div>
+
+            <!-- Articoli -->
+            <div class="ordine-section">
+                <h3>📦 Articoli</h3>
+                <div class="scan-mode-toggle">
+                    <label class="toggle-label">
+                        <input type="checkbox" id="fast-scan-ord-for" onchange="APP.toggleFastScan('ordFor')">
+                        <span class="toggle-slider"></span>
+                    </label>
+                    <span class="toggle-text">⚡ Scansione veloce (qta=1)</span>
+                </div>
+                <div class="search-bar">
+                    <span class="search-icon">🔍</span>
+                    <input type="text" id="search-art-ord-for" placeholder="Cerca articolo..." oninput="APP.debounceSearch('artOrdFor')">
+                    <button class="btn-scan" onclick="APP.startScan('ordFor')">📷</button>
+                </div>
+                <div id="results-art-ord-for" class="results-list mt-12"></div>
+                <div class="righe-list" id="righe-ord-for"></div>
+            </div>
+
+            <!-- Totali -->
+            <div class="ordine-section totali" id="totali-ord-for">
+                <div class="totali-grid">
+                    <div class="totale-row">
+                        <span>Totale articoli</span>
+                        <span id="tot-for-articoli">0</span>
+                    </div>
+                    <div class="totale-row">
+                        <span>Totale quantità</span>
+                        <span id="tot-for-qta">0</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Conferma -->
+            <button class="btn-confirm-order btn-fornitore" id="btn-conferma-ord-for" onclick="APP.confermaOrdineFornitore()" disabled>
+                ✅ Conferma Ordine
+            </button>
         </div>
     </div>
 
-    <!-- ============================================ -->
-    <!-- MODAL CONDIVISIONE                           -->
-    <!-- ============================================ -->
-    <div id="modal-share" class="modal-overlay hidden">
+    <!-- ==========================================
+         MODAL: QUANTITÀ
+         ========================================== -->
+    <div class="modal-overlay hidden" id="modal-qty">
         <div class="modal-content">
             <div class="modal-header">
-                <h3>📤 Condividi Report</h3>
-                <button id="btn-close-share" class="btn-close">✕</button>
+                <h3>Inserisci Quantità</h3>
+                <button class="btn-close" onclick="APP.closeQtyModal()">✕</button>
             </div>
             <div class="modal-body">
-                <p class="share-desc">Il report PDF è pronto. Come vuoi condividerlo?</p>
-                <div class="share-buttons">
-                    <button id="btn-share-native" class="btn-share">
-                        <span>📤</span> Condividi...
-                    </button>
-                    <button id="btn-share-whatsapp" class="btn-share whatsapp">
-                        <span>💬</span> WhatsApp
-                    </button>
-                    <button id="btn-share-email" class="btn-share email">
-                        <span>📧</span> Email
-                    </button>
-                    <button id="btn-share-drive" class="btn-share drive">
-                        <span>☁️</span> Salva su Drive
-                    </button>
-                    <button id="btn-share-download" class="btn-share download">
-                        <span>💾</span> Scarica
-                    </button>
+                <div class="card" style="margin-bottom: 16px;">
+                    <p style="font-size: 13px; color: var(--text-secondary);">Articolo:</p>
+                    <p style="font-size: 16px; font-weight: 600;" id="qty-articolo-desc"></p>
+                    <p style="font-size: 14px; color: var(--accent-primary); font-family: var(--font-mono);" id="qty-articolo-code"></p>
+                </div>
+                <div class="numpad-container">
+                    <div class="numpad-display">
+                        <span class="numpad-value" id="numpad-value">1</span>
+                    </div>
+                    <div class="numpad-grid">
+                        <button class="numpad-btn" onclick="APP.numpadInput('1')">1</button>
+                        <button class="numpad-btn" onclick="APP.numpadInput('2')">2</button>
+                        <button class="numpad-btn" onclick="APP.numpadInput('3')">3</button>
+                        <button class="numpad-btn" onclick="APP.numpadInput('4')">4</button>
+                        <button class="numpad-btn" onclick="APP.numpadInput('5')">5</button>
+                        <button class="numpad-btn" onclick="APP.numpadInput('6')">6</button>
+                        <button class="numpad-btn" onclick="APP.numpadInput('7')">7</button>
+                        <button class="numpad-btn" onclick="APP.numpadInput('8')">8</button>
+                        <button class="numpad-btn" onclick="APP.numpadInput('9')">9</button>
+                        <button class="numpad-btn clear" onclick="APP.numpadClear()">C</button>
+                        <button class="numpad-btn" onclick="APP.numpadInput('0')">0</button>
+                        <button class="numpad-btn backspace" onclick="APP.numpadBackspace()">⌫</button>
+                        <button class="numpad-btn confirm" onclick="APP.numpadConfirm()">✓ CONFERMA</button>
+                    </div>
                 </div>
             </div>
         </div>
     </div>
 
-    <!-- ============================================ -->
-    <!-- SCANNER OVERLAY                              -->
-    <!-- ============================================ -->
-    <div id="scanner-overlay" class="scanner-overlay hidden">
-        <div class="scanner-container">
-            <div class="scanner-header">
-                <h3>📷 Scansiona codice a barre</h3>
-                <button id="btn-close-scanner" class="btn-close-scanner">✕ Chiudi</button>
+    <!-- ==========================================
+         MODAL: CODA
+         ========================================== -->
+    <div class="modal-overlay hidden" id="modal-queue">
+        <div class="modal-content modal-large">
+            <div class="modal-header">
+                <h3 id="queue-modal-title">Coda</h3>
+                <button class="btn-close" onclick="APP.closeQueueModal()">✕</button>
             </div>
-            <div id="scanner-reader"></div>
-            <p class="scanner-hint">Inquadra il codice a barre</p>
-            <p id="scanner-fast-hint" class="scanner-fast-hint hidden">⚡ Modalità veloce: scansione continua attiva</p>
-            <button id="btn-cancel-scanner" class="btn-cancel-scanner">Annulla</button>
+            <div class="modal-body">
+                <div class="queue-header">
+                    <span class="queue-count" id="queue-count">0 elementi</span>
+                </div>
+                <div class="queue-list" id="queue-list"></div>
+                <div class="queue-actions" id="queue-actions"></div>
+            </div>
         </div>
     </div>
-    
-    <!-- TOAST NOTIFICATIONS -->
-    <div id="toast-container" class="toast-container"></div>
-    
-    <!-- AUDIO FEEDBACK -->
-    <audio id="audio-success" preload="auto">
-        <source src="data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1fdH2Onp2PfnJ2hpOVjYF4dH6IjYyGfnp/hIaFgX59f4KDgoB+fn+AgYGAf39/gICAf39/gICAf39/gICAf39/gICAf39/gICAf3+AgH9/f4CAf39/gIB/f3+Af39/gIB/f3+AgH9/f4CAf39/gIB/f4CAf3+AgIB/f4CAf3+AgIB/f4CAf3+AgIB/gICAgH+AgIB/gICAgH+AgIB/gICAgICA" type="audio/wav">
-    </audio>
-    <audio id="audio-error" preload="auto">
-        <source src="data:audio/wav;base64,UklGRl9vT19teleVAQAIAGRhdGFAAAEAgICAgA==" type="audio/wav">
-    </audio>
-    
+
+    <!-- ==========================================
+         MODAL: IMPOSTAZIONI
+         ========================================== -->
+    <div class="modal-overlay hidden" id="modal-settings">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>⚙️ Impostazioni</h3>
+                <button class="btn-close" onclick="APP.closeSettings()">✕</button>
+            </div>
+            <div class="modal-body">
+                <div style="display: flex; flex-direction: column; gap: 16px;">
+                    <div class="ordine-field">
+                        <label>Cartella Google Drive</label>
+                        <input type="text" id="settings-folder" placeholder="es: archivi/Ordini">
+                    </div>
+                    <div class="ordine-field">
+                        <label>Codice Deposito</label>
+                        <input type="text" id="settings-deposito" placeholder="es: 001">
+                    </div>
+                    <div class="ordine-field">
+                        <label>Account</label>
+                        <input type="text" id="settings-email" readonly style="background: var(--bg-input);">
+                    </div>
+                </div>
+                <div style="display: flex; flex-direction: column; gap: 12px; margin-top: 24px;">
+                    <button class="btn-primary" onclick="APP.saveSettings()">💾 Salva Impostazioni</button>
+                    <button class="btn-secondary" onclick="APP.refreshData()">🔄 Ricarica Dati</button>
+                    <button class="btn-danger" onclick="APP.logout()">🚪 Logout</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ==========================================
+         MODAL: CONDIVISIONE
+         ========================================== -->
+    <div class="modal-overlay hidden" id="modal-share">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>📤 Condividi</h3>
+                <button class="btn-close" onclick="APP.closeShareModal()">✕</button>
+            </div>
+            <div class="modal-body">
+                <div style="display: flex; flex-direction: column; gap: 12px;">
+                    <button class="btn-primary" onclick="APP.shareNative()">
+                        📱 Condividi...
+                    </button>
+                    <button class="btn-secondary" onclick="APP.shareWhatsApp()">
+                        💬 WhatsApp
+                    </button>
+                    <button class="btn-secondary" onclick="APP.shareEmail()">
+                        ✉️ Email
+                    </button>
+                    <button class="btn-secondary" onclick="APP.saveToDrive()">
+                        ☁️ Salva su Drive
+                    </button>
+                    <button class="btn-secondary" onclick="APP.downloadFile()">
+                        💾 Download
+                    </button>
+                </div>
+                <div id="share-status" class="status-message mt-16"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ==========================================
+         SCANNER OVERLAY
+         ========================================== -->
+    <div class="scanner-overlay hidden" id="scanner-overlay">
+        <div class="scanner-header">
+            <span class="scanner-title">Scansiona codice</span>
+            <button class="btn-close" onclick="APP.stopScan()">✕</button>
+        </div>
+        <div class="scanner-container">
+            <div id="scanner-reader"></div>
+        </div>
+        <div class="scanner-footer">
+            <button class="btn-cancel-scan" onclick="APP.stopScan()">❌ Annulla</button>
+            <p class="scanner-hint hidden" id="scanner-hint">⚡ Modalità veloce attiva</p>
+        </div>
+    </div>
+
+    <!-- Scripts -->
+    <script src="db.js"></script>
     <script src="app.js"></script>
 </body>
 </html>

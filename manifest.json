@@ -1,13 +1,13 @@
 {
-    "name": "Picam",
+    "name": "Picam - Inventario e Ordini",
     "short_name": "Picam",
-    "version": "2.1.0",
-    "description": "Gestione Inventario e Ordini",
-    "start_url": "./",
+    "description": "Gestione inventario e ordini con sincronizzazione Google Drive",
+    "version": "3.0.0",
+    "start_url": "./index.html",
     "display": "standalone",
-    "background_color": "#1a1a2e",
-    "theme_color": "#1a1a2e",
-    "orientation": "portrait-primary",
+    "orientation": "portrait",
+    "background_color": "#E8EAED",
+    "theme_color": "#37474F",
     "icons": [
         {
             "src": "icon-192.png",
@@ -21,5 +21,7 @@
             "type": "image/png",
             "purpose": "any maskable"
         }
-    ]
+    ],
+    "categories": ["business", "productivity"],
+    "lang": "it-IT"
 }
